@@ -236,6 +236,7 @@ private fun DetailContent(
                             points = content.geometry.pace,
                             yFormatter = { formatPace(it) },
                             xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
+                            minXLabelStep = 0.1, // one decimal km
                             invertY = true,
                             filled = false,
                         )
@@ -248,6 +249,8 @@ private fun DetailContent(
                             points = content.geometry.elevation,
                             yFormatter = { formatElevation(it) },
                             xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
+                            minXLabelStep = 0.1, // one decimal km
+                            minYStep = 1.0, // formatElevation shows whole metres
                         )
                     }
                 }

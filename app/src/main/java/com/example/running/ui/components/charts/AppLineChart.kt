@@ -60,16 +60,18 @@ fun AppLineChart(
     selectedX: Double? = null,
     onSelectX: ((Double?) -> Unit)? = null,
     comparison: List<ChartPoint>? = null,
+    minXLabelStep: Double = 0.0,
+    minYStep: Double = 0.0,
 ) {
     if (points.size < 2) return
     val sign = if (invertY) -1.0 else 1.0
     // Vico derives its x step from the data and rejects x values finer than four decimals, so arbitrary
     // distances (e.g. 1.23456 km) crash it. Snap x onto a regular grid and give Vico that grid as the step.
-    val grid = remember(points) { ChartGrid.of(points) }
+    val grid = remember(points, minXLabelStep) { ChartGrid.of(points, minXLabelStep) }
     val main = remember(points, grid) { grid.snap(points) }
     val second = remember(comparison, grid) { comparison?.let(grid::snap)?.takeIf { it.size >= 2 } }
     if (main.size < 2) return
-    val yPlan = remember(main, second, sign) { YAxisPlan.of(main + second.orEmpty(), sign) }
+    val yPlan = remember(main, second, sign, minYStep) { YAxisPlan.of(main + second.orEmpty(), sign, minYStep) }
     val yBounds = yPlan.bounds
     val producer = remember { CartesianChartModelProducer() }
     LaunchedEffect(main, second, invertY) {
@@ -183,13 +185,27 @@ internal class ChartGrid private constructor(val step: Double, private val origi
         private const val TARGET_LABELS = 5
         private const val MIN_STEP = 0.0001
 
-        fun of(points: List<ChartPoint>): ChartGrid {
+        /**
+         * [minLabelStep] is the finest x interval the x formatter can show apart (0.1 for "1.2 km").
+         * Labels are spaced on a 1-2-5 interval that is a whole number of grid steps; an arbitrary
+         * interval such as 0.075 km would print "0.1" twice.
+         */
+        fun of(points: List<ChartPoint>, minLabelStep: Double = 0.0): ChartGrid {
             val min = points.minOf { it.x }
             val max = points.maxOf { it.x }
             val step = niceStep((max - min) / TARGET_CELLS)
             val origin = Math.round(Math.floor(min / step) * step * 10_000.0) / 10_000.0
-            val cells = ((max - min) / step).toInt().coerceAtLeast(1)
-            return ChartGrid(step, origin, (cells / TARGET_LABELS).coerceAtLeast(1))
+            return ChartGrid(step, origin, labelSpacing(step, maxOf((max - min) / TARGET_LABELS, minLabelStep, step)))
+        }
+
+        private fun labelSpacing(step: Double, wanted: Double): Int {
+            var candidate = niceY(wanted)
+            repeat(6) {
+                val ratio = candidate / step
+                if (abs(ratio - Math.round(ratio)) < 1e-6) return Math.round(ratio).toInt().coerceAtLeast(1)
+                candidate = niceY(candidate * 1.000001) // next 1-2-5 value up
+            }
+            return Math.round(candidate / step).toInt().coerceAtLeast(1)
         }
 
         /** 1-2-5 step of any size (y axis). */
@@ -217,15 +233,17 @@ internal class YAxisPlan(val step: Double, val bounds: ClosedFloatingPointRange<
 
         /**
          * [points] carry the real y; [sign] -1 plots -y (pace). An inverted axis stays below 0.
+         * [minStep] is the finest step the y formatter can show apart (1.0 for whole metres); a finer
+         * step on flat data would print the same label twice (e.g. 4.5 / 5 / 5.5 m as "5 m, 5 m, 6 m").
          */
-        fun of(points: List<ChartPoint>, sign: Double): YAxisPlan {
+        fun of(points: List<ChartPoint>, sign: Double, minStep: Double = 0.0): YAxisPlan {
             val ys = points.map { it.y * sign }
             val lo = ys.min()
             val hi = ys.max()
             val span = (hi - lo).takeIf { it > 1e-9 } ?: maxOf(abs(hi) * 0.1, 1.0)
             val raw = span / TARGET_LABELS
             val step = if (sign < 0) PACE_STEPS.firstOrNull { it >= raw } ?: (Math.ceil(raw / 600.0) * 600.0)
-            else ChartGrid.niceY(raw)
+            else ChartGrid.niceY(maxOf(raw, minStep))
             var bottom = Math.floor(lo / step) * step
             var top = Math.ceil(hi / step) * step
             if (top - bottom < step * 1.5) { // flat line: give it a step either side
