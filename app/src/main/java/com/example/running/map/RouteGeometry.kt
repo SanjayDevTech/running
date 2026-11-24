@@ -21,8 +21,10 @@ import kotlin.math.roundToInt
 internal data class RouteLine(val coords: List<GeoPoint>, val argb: Int, val stepFilled: Boolean)
 
 /**
- * Normalises pace to 0 (fast) .. 1 (slow) against the run's own 5th-95th percentile pace, so a
- * single run always uses the full colour scale (architecture.md §3.4).
+ * Normalises pace to 0 (fast) .. 1 (slow) against the run's own 5th-95th percentile pace, widened to
+ * at least [MIN_HALF_SPREAD_SEC_PER_KM] either side of the median pace (architecture.md §3.4). Runs
+ * with real surges or walk breaks keep the full colour scale; a steady run (5:40-5:50 /km) stays
+ * mostly mid-scale instead of stretching a 10 s difference from green to red.
  */
 internal class PaceNormalizer private constructor(private val lo: Double, private val hi: Double) {
     /** 0..1 or null when [paceSecPerKm] is null. */
@@ -35,12 +37,18 @@ internal class PaceNormalizer private constructor(private val lo: Double, privat
     companion object {
         private const val MIN_SPREAD_SEC = 1.0
 
+        /** Smallest distance (s/km) from the median pace to either end of the colour scale. */
+        const val MIN_HALF_SPREAD_SEC_PER_KM = 30.0
+
         fun of(route: MapRoute): PaceNormalizer = of(route.points.mapNotNull { it.paceSecPerKm })
 
         fun of(paces: List<Double>): PaceNormalizer {
             val sorted = paces.filter { it.isFinite() && it > 0.0 }.sorted()
             if (sorted.isEmpty()) return PaceNormalizer(0.0, 0.0)
-            return PaceNormalizer(percentile(sorted, 0.05)!!, percentile(sorted, 0.95)!!)
+            val median = percentile(sorted, 0.5)!!
+            val lo = minOf(percentile(sorted, 0.05)!!, median - MIN_HALF_SPREAD_SEC_PER_KM)
+            val hi = maxOf(percentile(sorted, 0.95)!!, median + MIN_HALF_SPREAD_SEC_PER_KM)
+            return PaceNormalizer(lo, hi)
         }
     }
 }

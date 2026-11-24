@@ -1209,7 +1209,9 @@ equirectangular) and start/end dots; `RouteThumbnail` same; `MapModule.initializ
 manager returns `false`/`NONE`.
 
 Rendering rules for C: pace colouring from `PaceScale` (normalised to the run's own 5th–95th
-percentile pace), step-filled parts dashed in `StepFilled`, start marker `Success`, end marker
+percentile pace, widened to at least ±30 s/km around the median pace —
+`PaceNormalizer.MIN_HALF_SPREAD_SEC_PER_KM`: lo = min(p5, median − 30), hi = max(p95, median + 30) — so
+a steady run stays mid-scale while surges and walk breaks keep full contrast), step-filled parts dashed in `StepFilled`, start marker `Success`, end marker
 `Danger`/chequered, draw-in animation over ~1.2 s. Tile source: bundled `assets/map/style_dark.json`
 ("slightly lighter dark", OpenFreeMap vector tiles `https://tiles.openfreemap.org/planet`); when
 `BuildConfig.MAPTILER_KEY` is non-empty, C switches the source URL to MapTiler with the key (same
@@ -1853,3 +1855,6 @@ the path and its pace slower. That is the recorded data, not a bug.
   ("5m 59s", "38s") instead of truncating 5:59 to "5m"; from an hour "1h 05m" (minutes padded). Used by
   the Activities "This week" strip, Progress totals and the dev compare max gap. The Progress TIME
   chart axis passes `withSeconds = false` so its labels stay whole minutes ("5m", not "5m 0s").
+- **Pace colours on steady runs** (`map/RouteGeometry.kt` `PaceNormalizer`): the 5th–95th percentile
+  scale is widened to at least ±30 s/km around the median (§3.4), so a 5:40–5:50 run no longer spans
+  green to red.

@@ -41,6 +41,39 @@ class RouteGeometryTest {
     }
 
     @Test
+    fun steadyRunStaysMidScale() {
+        // 5:40-5:50 /km: the 10 s spread is widened to median ± 30 s, so nothing hits the ends.
+        val paces = (0..100).map { 340.0 + it * 0.1 }
+        val n = PaceNormalizer.of(paces)
+        val ts = paces.map { n.normalize(it)!! }
+        assertThat(ts.min()).isAtLeast(0.3)
+        assertThat(ts.max()).isAtMost(0.7)
+        assertThat(n.normalize(345.0)!!).isWithin(1e-9).of(0.5)
+        // Median ± MIN_HALF_SPREAD maps to the ends.
+        assertThat(n.normalize(345.0 - PaceNormalizer.MIN_HALF_SPREAD_SEC_PER_KM)!!).isWithin(1e-9).of(0.0)
+        assertThat(n.normalize(345.0 + PaceNormalizer.MIN_HALF_SPREAD_SEC_PER_KM)!!).isWithin(1e-9).of(1.0)
+    }
+
+    @Test
+    fun surgesAndWalkBreaksKeepFullContrast() {
+        // Mostly 5:00 /km with 4:00 surges and 9:00 walk breaks: p5/p95 already exceed median ± 30 s.
+        val paces = List(80) { 300.0 } + List(10) { 240.0 } + List(10) { 540.0 }
+        val n = PaceNormalizer.of(paces)
+        assertThat(n.normalize(240.0)).isEqualTo(0.0)
+        assertThat(n.normalize(540.0)).isEqualTo(1.0)
+    }
+
+    @Test
+    fun oneSidedSpreadIsOnlyWidenedOnTheNarrowSide() {
+        // Steady 5:00 with a slow tail: hi stays at p95, lo is pulled down to median − 30 s.
+        val paces = List(90) { 300.0 } + List(10) { 480.0 }
+        val n = PaceNormalizer.of(paces)
+        assertThat(n.normalize(270.0)).isEqualTo(0.0)
+        assertThat(n.normalize(480.0)).isEqualTo(1.0)
+        assertThat(n.normalize(300.0)!!).isWithin(1e-9).of(30.0 / 210.0)
+    }
+
+    @Test
     fun paceColorEndpointsMatchTheScale() {
         assertThat(RouteColors.paceArgb(0.0)).isEqualTo(PaceScale.first().toArgb())
         assertThat(RouteColors.paceArgb(1.0)).isEqualTo(PaceScale.last().toArgb())
