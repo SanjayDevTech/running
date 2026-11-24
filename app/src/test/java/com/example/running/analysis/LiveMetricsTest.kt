@@ -133,4 +133,17 @@ class LiveMetricsTest {
         assertThat(before).isWithin(3.0).of(30.0)
         assertThat(m.snapshot(20_000).elapsedMillis).isEqualTo(20_000L)
     }
+
+    @Test fun gapWithoutEventsCountsAsMovingSoPaceStaysSane() {
+        // 3 m/s north, then 25 s with no events at all (process restart), then running on.
+        val m = DefaultLiveMetrics(GpsFixture.load("b_paused").runnerProfile(), 0)
+        fun fix(t: Long) = LocationFix(t, t * 1_000_000, 12.0 + t / 1000.0 * 0.000027, 77.0, null, null, 5f, null, 3f, 0.3f, 0f, LocationEngine.PLAY)
+        for (i in 0..30) m.onFix(fix(i * 1000L), paused = false)
+        for (i in 55..60) m.onFix(fix(i * 1000L), paused = false)
+        val s = m.snapshot(60_000)
+        assertThat(s.distanceM).isWithin(10.0).of(180.0)
+        assertThat(s.movingMillis.toDouble()).isWithin(6_000.0).of(60_000.0)
+        assertThat(s.avgPaceSecPerKm!!).isWithin(40.0).of(333.0)
+        assertThat(s.currentPaceSecPerKm!!).isWithin(60.0).of(333.0)
+    }
 }

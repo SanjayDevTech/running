@@ -85,6 +85,8 @@ internal class DefaultLiveMetrics(
             return
         }
         if (filter.check(fix.timeMillis, fix.lat, fix.lon, fix.horizontalAccuracyM, fix.speedMps) != FixVerdict.ACCEPTED) return
+        val sinceLastEvent = lastEventTime?.let { (fix.timeMillis - it).coerceAtLeast(0) } ?: 0L
+        val accrued = pendingAccrual(fix.timeMillis)
         accrueMoving(fix.timeMillis)
         val proj = projection ?: LocalProjection(GeoPoint(fix.lat, fix.lon)).also { projection = it }
         val acc = fix.horizontalAccuracyM?.toDouble() ?: AnalysisTuning.DEFAULT_ACCURACY_M
@@ -134,6 +136,14 @@ internal class DefaultLiveMetrics(
                 goodDist[gait.ordinal] += increment
                 goodSteps[gait.ordinal] += pendingSteps
             }
+        }
+        // A gap with no events at all (GPS outage without steps, or the process restarting) accrued only
+        // LIVE_MAX_ACCRUAL_MILLIS above, yet its straight-line distance is counted. Like the analyzer, a
+        // gap covered at moving speed is moving time; otherwise pace jumps to ~1 min/km after the gap.
+        if (increment > 0 && sinceLastEvent > AnalysisTuning.LIVE_MAX_ACCRUAL_MILLIS &&
+            increment / (sinceLastEvent / 1000.0) >= AnalysisTuning.STOP_SPEED_MPS
+        ) {
+            movingMillis += sinceLastEvent - accrued
         }
         addDistance(increment, gait)
         pendingSteps = 0.0
