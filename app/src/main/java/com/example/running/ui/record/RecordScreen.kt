@@ -64,6 +64,7 @@ import com.example.running.core.util.formatDistanceKm
 import com.example.running.core.util.formatDuration
 import com.example.running.core.util.formatElevation
 import com.example.running.core.util.formatPace
+import com.example.running.core.util.formatAccuracy
 import com.example.running.core.util.formatRunDateTime
 import com.example.running.di.LocalAppContainer
 import com.example.running.di.appViewModel
@@ -385,7 +386,7 @@ private fun RecordingContent(
             val paceUnit = stringResource(R.string.record_unit_pace)
             StatRow(
                 listOf(
-                    StatItem(stringResource(R.string.record_stat_time), formatDuration(stats.movingMillis)),
+                    StatItem(stringResource(R.string.record_stat_time), formatDuration(stats.activeMillis)),
                     StatItem(stringResource(R.string.record_stat_pace), formatPace(stats.currentPaceSecPerKm), paceUnit),
                     StatItem(stringResource(R.string.record_stat_avg_pace), formatPace(stats.avgPaceSecPerKm), paceUnit),
                 ),

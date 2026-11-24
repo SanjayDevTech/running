@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 // The ONLY place user-visible numbers are formatted (en, km only).
@@ -59,10 +60,30 @@ fun formatCalories(kcal: Double?): String =
 fun formatCadence(spm: Double?): String =
     if (spm == null || !spm.isFinite()) EM_DASH else spm.roundToLong().toString()
 
+/** GPS accuracy, "±5 m"; "–" when unknown. */
+fun formatAccuracy(meters: Float?): String =
+    if (meters == null || !meters.isFinite()) EM_DASH else "±${meters.roundToInt()} m"
+
+/** Plain metres: one decimal below 100 m ("4.2 m"), whole metres from 100 m ("312 m"); "–" when unknown. */
+fun formatMeters(meters: Double?): String = when {
+    meters == null || !meters.isFinite() -> EM_DASH
+    meters < 100 -> String.format(EN, "%.1f m", meters)
+    else -> "${meters.roundToInt()} m"
+}
+
+/** Seconds with two decimals, "1.02 s"; "–" when unknown. */
+fun formatSecondsPrecise(millis: Double?): String =
+    if (millis == null || !millis.isFinite()) EM_DASH else String.format(EN, "%.2f s", millis / 1000.0)
+
+/** A 0..1 share as "42 %". */
+fun formatPercent(fraction: Double): String = "${(fraction * 100).roundToInt()} %"
+
 private val RUN_DATE_TIME = DateTimeFormatter.ofPattern("EEE, d MMM yyyy · h:mm a", EN)
 private val RUN_DATE = DateTimeFormatter.ofPattern("d MMM yyyy", EN)
 private val SHORT_DAY = DateTimeFormatter.ofPattern("d MMM", EN)
 private val WEEKDAY = DateTimeFormatter.ofPattern("EEE", EN)
+private val MONTH = DateTimeFormatter.ofPattern("MMM", EN)
+private val MONTH_YEAR = DateTimeFormatter.ofPattern("MMM yyyy", EN)
 
 private fun zoneOf(zoneId: String): ZoneId = runCatching { ZoneId.of(zoneId) }.getOrDefault(ZoneId.of("UTC"))
 
@@ -87,3 +108,11 @@ fun formatRelativeDay(millis: Long, zoneId: String, clock: Clock): String {
         else -> SHORT_DAY.format(day)
     }
 }
+
+/** Chart axis / period caption for a week starting at [startMillis]: "24 Nov". */
+fun formatWeekLabel(startMillis: Long, zone: ZoneId): String =
+    SHORT_DAY.format(Instant.ofEpochMilli(startMillis).atZone(zone))
+
+/** Month label: "Nov", or "Nov 2026" with [withYear]. */
+fun formatMonthLabel(startMillis: Long, zone: ZoneId, withYear: Boolean = false): String =
+    (if (withYear) MONTH_YEAR else MONTH).format(Instant.ofEpochMilli(startMillis).atZone(zone))

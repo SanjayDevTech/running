@@ -9,6 +9,7 @@ import com.example.running.core.model.PressureSample
 import com.example.running.core.model.RunAnalysis
 import com.example.running.core.model.RunSeries
 import com.example.running.core.model.RunnerProfile
+import com.example.running.core.model.SensorSample
 import com.example.running.core.model.StepEvent
 import com.example.running.core.model.TrackPoint
 
@@ -38,5 +39,6 @@ interface RunNamer {
 }
 
 interface RunSeriesBuilder {
-    fun build(filteredPoints: List<TrackPoint>): RunSeries
+    /** [sensorSamples] (the run's step samples) are only needed for the cadence series. */
+    fun build(filteredPoints: List<TrackPoint>, sensorSamples: List<SensorSample> = emptyList()): RunSeries
 }

@@ -8,7 +8,7 @@ import org.junit.Test
 
 class NotificationModelTest {
     private val stats = LiveStats.ZERO.copy(
-        elapsedMillis = 2_000_000, movingMillis = 1_932_000, distanceM = 5_023.0, currentPaceSecPerKm = 332.0,
+        elapsedMillis = 2_000_000, movingMillis = 1_900_000, pausedMillis = 68_000, distanceM = 5_023.0, currentPaceSecPerKm = 332.0,
     )
 
     private fun recording(paused: Boolean) = RecordingState.Recording("r", T0, paused, stats, GpsStatus.NONE)

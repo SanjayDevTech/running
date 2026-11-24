@@ -20,11 +20,14 @@ data class MapRoute(
     val bounds: GeoBounds? by lazy { GeoBounds.of(points.map { GeoPoint(it.lat, it.lon) }) }
 
     companion object {
-        /** Uses each point's own distanceM when set, otherwise a running haversine sum. */
+        /**
+         * Uses each point's own distanceM when set, otherwise a running haversine sum. Points recorded
+         * while paused are dropped: movement during a pause is not part of the drawn route.
+         */
         fun fromTrackPoints(points: List<TrackPoint>, coloring: RouteColoring = RouteColoring.PACE): MapRoute {
             var cumulative = 0.0
             var prev: TrackPoint? = null
-            val out = points.map { p ->
+            val out = points.filter { !it.paused }.map { p ->
                 prev?.let { cumulative += com.example.running.core.util.haversineMeters(it.lat, it.lon, p.lat, p.lon) }
                 prev = p
                 RoutePoint(

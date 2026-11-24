@@ -88,6 +88,7 @@ class FakeLiveMetrics(private val startedAtMillis: Long) : LiveMetrics {
         return LiveStats.ZERO.copy(
             elapsedMillis = elapsed,
             movingMillis = elapsed - paused,
+            pausedMillis = paused,
             distanceM = distance,
             steps = steps.filterNot { it.second }.sumOf { it.first.count },
         )

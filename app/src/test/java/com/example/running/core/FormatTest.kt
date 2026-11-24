@@ -1,5 +1,6 @@
 package com.example.running.core
 
+import com.example.running.core.util.formatAccuracy
 import com.example.running.core.util.formatCadence
 import com.example.running.core.util.formatCalories
 import com.example.running.core.util.formatDistance
@@ -7,11 +8,16 @@ import com.example.running.core.util.formatDistanceKm
 import com.example.running.core.util.formatDuration
 import com.example.running.core.util.formatDurationShort
 import com.example.running.core.util.formatElevation
+import com.example.running.core.util.formatMeters
+import com.example.running.core.util.formatMonthLabel
 import com.example.running.core.util.formatPace
 import com.example.running.core.util.formatPaceWithUnit
+import com.example.running.core.util.formatPercent
 import com.example.running.core.util.formatRelativeDay
 import com.example.running.core.util.formatRunDate
 import com.example.running.core.util.formatRunDateTime
+import com.example.running.core.util.formatSecondsPrecise
+import com.example.running.core.util.formatWeekLabel
 import com.example.running.testing.FakeClock
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
@@ -68,5 +74,25 @@ class FormatTest {
         assertThat(formatRelativeDay(now - day, zone, clock)).isEqualTo("Yesterday")
         assertThat(formatRelativeDay(now - 2 * day, zone, clock)).isEqualTo("Sun")
         assertThat(formatRelativeDay(now - 12 * day, zone, clock)).isEqualTo("12 Nov")
+    }
+
+    @Test fun gpsAndDevFormatters() {
+        assertThat(formatAccuracy(4.6f)).isEqualTo("±5 m")
+        assertThat(formatAccuracy(null)).isEqualTo("–")
+        assertThat(formatAccuracy(Float.NaN)).isEqualTo("–")
+        assertThat(formatMeters(4.24)).isEqualTo("4.2 m")
+        assertThat(formatMeters(312.4)).isEqualTo("312 m")
+        assertThat(formatMeters(null)).isEqualTo("–")
+        assertThat(formatSecondsPrecise(1_016.0)).isEqualTo("1.02 s")
+        assertThat(formatSecondsPrecise(null)).isEqualTo("–")
+        assertThat(formatPercent(0.426)).isEqualTo("43 %")
+    }
+
+    @Test fun periodLabels() {
+        val z = ZoneId.of(zone)
+        val t = ZonedDateTime.of(2026, 11, 24, 0, 0, 0, 0, z).toInstant().toEpochMilli()
+        assertThat(formatWeekLabel(t, z)).isEqualTo("24 Nov")
+        assertThat(formatMonthLabel(t, z)).isEqualTo("Nov")
+        assertThat(formatMonthLabel(t, z, withYear = true)).isEqualTo("Nov 2026")
     }
 }

@@ -32,7 +32,12 @@ data class LiveStats(
     val elevationGainM: Double?,
     val currentSplitIndex: Int,
     val lastSplitPaceSecPerKm: Double?,
+    /** Total time in manual pauses so far (including an open pause). */
+    val pausedMillis: Long = 0,
 ) {
+    /** The live clock: elapsed minus manual pauses. Unlike [movingMillis] it keeps running at stops (no auto-pause). */
+    val activeMillis: Long get() = (elapsedMillis - pausedMillis).coerceAtLeast(0)
+
     companion object {
         val ZERO = LiveStats(
             elapsedMillis = 0, movingMillis = 0, distanceM = 0.0, currentPaceSecPerKm = null,

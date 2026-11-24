@@ -23,12 +23,4 @@ class RecordUiTest {
         assertThat(secondsUntilWeakStart(GpsStatus.NONE.copy(waitingMillis = 3_000))).isNull()
     }
 
-    @Test fun standInFormatters() {
-        assertThat(formatAccuracy(4.6f)).isEqualTo("±5 m")
-        assertThat(formatAccuracy(null)).isEqualTo("–")
-        assertThat(formatMeters(4.24)).isEqualTo("4.2 m")
-        assertThat(formatMeters(312.4)).isEqualTo("312 m")
-        assertThat(formatSecondsPrecise(1_016.0)).isEqualTo("1.02 s")
-        assertThat(formatPercent(0.426)).isEqualTo("43 %")
-    }
 }

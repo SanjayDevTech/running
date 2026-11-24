@@ -6,6 +6,7 @@ import com.example.running.core.contracts.MapOfflineManager
 import com.example.running.core.contracts.RunSeriesBuilder
 import com.example.running.core.model.ActivityType
 import com.example.running.core.model.MapRoute
+import com.example.running.core.model.OfflineAreaStatus
 import com.example.running.core.util.AppDispatchers
 import com.example.running.data.repo.RunRepository
 import com.example.running.data.settings.SettingsRepository
@@ -43,8 +44,10 @@ internal class RunDetailViewModel(
         val points = repository.getFilteredPoints(runId)
         if (points.size < 2) return@withContext RunGeometry.EMPTY
         val series = seriesBuilder.build(points)
+        val route = MapRoute.fromTrackPoints(points)
+        retryOfflineArea(route)
         RunGeometry(
-            route = MapRoute.fromTrackPoints(points),
+            route = route,
             pace = paceChartPoints(series.pace),
             elevation = elevationChartPoints(series.elevation),
         )
@@ -84,6 +87,21 @@ internal class RunDetailViewModel(
 
     fun setType(type: ActivityType) {
         viewModelScope.launch { repository.setType(runId, type) }
+    }
+
+    /**
+     * The finalizer's download is fire-and-forget and fails when the phone is offline at the end of
+     * a run, so opening the run retries it. Tied to this screen: leaving cancels it and the region
+     * reports FAILED, which the next open retries again.
+     */
+    private fun retryOfflineArea(route: MapRoute) {
+        val bounds = route.bounds ?: return
+        viewModelScope.launch {
+            val status = offline.status(runId)
+            if ((status == OfflineAreaStatus.NONE || status == OfflineAreaStatus.FAILED) && !deleting.value) {
+                offline.downloadRunArea(runId, bounds)
+            }
+        }
     }
 
     /** deleteRun -> deleteRunArea -> [onDone] (architecture.md §3.8). */

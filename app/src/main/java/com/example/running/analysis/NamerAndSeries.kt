@@ -31,14 +31,11 @@ internal class DefaultRunNamer : RunNamer {
 /**
  * Chart series over distance. Pace excludes stops and is smoothed and downsampled to at most
  * [maxPoints] distance buckets; elevation likewise. Cadence needs the run's step samples, which the
- * contract's `build(points)` does not receive (see SCR-B-1: [build] with `sensorSamples`).
+ * run's step samples ([sensorSamples]); without them it is empty.
  */
 internal class DefaultRunSeriesBuilder(private val maxPoints: Int = 300) : RunSeriesBuilder {
 
-    override fun build(filteredPoints: List<TrackPoint>): RunSeries = build(filteredPoints, emptyList())
-
-    // SCR-B-1: becomes the interface method once `sensorSamples` is added to RunSeriesBuilder.build.
-    fun build(filteredPoints: List<TrackPoint>, sensorSamples: List<SensorSample>): RunSeries {
+    override fun build(filteredPoints: List<TrackPoint>, sensorSamples: List<SensorSample>): RunSeries {
         val pts = filteredPoints.filter { it.distanceM != null && !it.paused }.sortedBy { it.timeMillis }
         val pace = bucket(pts.filter { it.segmentKind != SegmentKind.STOP && it.paceSecPerKm != null }) { it.paceSecPerKm!! }
         val elevation = bucket(pts.filter { it.elevationM != null }) { it.elevationM!! }

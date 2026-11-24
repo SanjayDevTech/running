@@ -56,6 +56,14 @@ class RunDetailViewModelTest {
         assertThat(c.showDevCompare).isFalse()
     }
 
+    @Test fun openingRetriesMissingOfflineAreaOnce() = runTest(mainRule.testDispatcher) {
+        val id = seed()
+        vm(id).state.content()
+        assertThat(offline.downloads.map { it.first }).containsExactly(id)
+        vm(id).state.content()   // READY now: no second download
+        assertThat(offline.downloads).hasSize(1)
+    }
+
     @Test fun unknownRunIsNotFound() = runTest(mainRule.testDispatcher) {
         vm("missing").state.test {
             var item = awaitItem()

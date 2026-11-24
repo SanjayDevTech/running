@@ -46,9 +46,9 @@ import com.example.running.ui.components.AppTopBar
 import com.example.running.ui.components.EmptyState
 import com.example.running.ui.components.SectionHeader
 import com.example.running.ui.components.displayName
-import com.example.running.ui.record.formatMeters
-import com.example.running.ui.record.formatPercent
-import com.example.running.ui.record.formatSecondsPrecise
+import com.example.running.core.util.formatMeters
+import com.example.running.core.util.formatPercent
+import com.example.running.core.util.formatSecondsPrecise
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black

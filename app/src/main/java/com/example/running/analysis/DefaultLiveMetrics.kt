@@ -219,6 +219,7 @@ internal class DefaultLiveMetrics(
             elevationGainM = elevationGain(),
             currentSplitIndex = (distance / METERS_PER_KM).toInt(),
             lastSplitPaceSecPerKm = lastSplitPace,
+            pausedMillis = pausedTotal + (pausedSince?.let { (nowMillis - it).coerceAtLeast(0) } ?: 0L),
         )
     }
 

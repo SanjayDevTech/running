@@ -36,9 +36,9 @@ internal data class NotificationModel(
                 NotificationModel(
                     phase = if (state.paused) Phase.PAUSED else Phase.RUNNING,
                     distanceKm = formatDistanceKm(stats.distanceM),
-                    time = formatDuration(stats.movingMillis),
+                    time = formatDuration(stats.activeMillis),
                     pace = formatPace(stats.currentPaceSecPerKm),
-                    chronometerBaseMillis = if (state.paused) null else nowMillis - stats.movingMillis,
+                    chronometerBaseMillis = if (state.paused) null else nowMillis - stats.activeMillis,
                     kmProgressMeters = metersIntoKm,
                     currentKm = (stats.distanceM / METERS_PER_KM).toInt() + 1,
                 )

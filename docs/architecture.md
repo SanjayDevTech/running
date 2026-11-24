@@ -660,6 +660,9 @@ Tracks needing private, non-backed-up state (e.g. A's recovery attempt counter) 
 `SharedPreferences`/DataStore file named `<track>_<purpose>` (e.g. `recording_state`). Nothing in a
 private store may be needed by another track.
 
+In use (Run 2): A keeps a private SharedPreferences file `recording_state` (keys `auto_resume_run_id`,
+`auto_resume_attempts`) that caps automatic crash resumes at 3 per run.
+
 ### 2.6 DI (`di/`, FOUNDATION) — manual, like food-tracker
 
 ```kotlin
@@ -970,7 +973,11 @@ data class LiveStats(
     val currentPaceSecPerKm: Double?, val avgPaceSecPerKm: Double?,
     val caloriesKcal: Double?, val steps: Int?, val cadenceSpm: Double?, val elevationGainM: Double?,
     val currentSplitIndex: Int, val lastSplitPaceSecPerKm: Double?,
-) { companion object { val ZERO: LiveStats } }
+    val pausedMillis: Long = 0,       // manual pauses so far, incl. an open one (Run 3)
+) {
+    val activeMillis: Long            // elapsed − pausedMillis: the live clock (keeps running at stops)
+    companion object { val ZERO: LiveStats }
+}
 sealed interface RecordingState {
     data object Idle : RecordingState
     data class WarmingUp(val gps: GpsStatus) : RecordingState
@@ -1022,6 +1029,9 @@ FGS and resumes recording automatically **if `Permissions.hasBackgroundLocation(
 service restart (`START_STICKY`) and from `checkForInterruptedRun()`. Without background location (or
 if the FGS start is refused, e.g. `ForegroundServiceStartNotAllowedException`), A does not retry from
 the background and instead surfaces `NeedsRecoveryDecision` (resume / finish) on the next app open.
+Automatic resumes are capped at 3 per run (§2.5). A resume the user confirms after a gap of 60 s or
+more stores the gap as a pause; finishing an interrupted run uses the last recorded data time as
+`endedAtMillis`, not the current time.
 
 ### 3.2 Location + sensor sources — implemented by A
 
@@ -1094,7 +1104,7 @@ interface LiveMetrics {
 }
 interface LiveMetricsFactory { fun create(profile: RunnerProfile, startedAtMillis: Long): LiveMetrics }
 interface RunNamer { fun name(startedAtMillis: Long, zoneId: String, type: ActivityType): String }  // "Morning Run", "Evening Walk"…
-interface RunSeriesBuilder { fun build(filteredPoints: List<TrackPoint>): RunSeries }
+interface RunSeriesBuilder { fun build(filteredPoints: List<TrackPoint>, sensorSamples: List<SensorSample> = emptyList()): RunSeries }  // samples only feed cadence (Run 3)
 
 // analysis/AnalysisModule.kt  CONTRACT(B)
 class AnalysisModule(clock: Clock) {
@@ -1708,3 +1718,45 @@ through the BOM. compileSdk 37 minor 2 works.
 **Foundation patch (after Run 1 review):** `ACCESS_BACKGROUND_LOCATION` declared;
 `Permissions.BACKGROUND_LOCATION`, `hasBackgroundLocation()`, `canRequestBackgroundLocation()` added
 (`test/…/core/PermissionsTest.kt`); §3.1 recovery rule, §3.8 onboarding order, §5.6, §7 and §8 updated.
+
+---
+
+## 10. Run 2/3 integration (2026-11-24)
+
+Tracks merged into `main` with `--no-ff` in contract order B, C, F, A, D, E. Every track stayed inside
+its owned paths, so all six merges were clean. The track worktrees were removed; the `track/*`
+branches are kept.
+
+**Shared-change requests applied:**
+- **SCR-A-1, SCR-E-1** → `core/util/Format.kt`: `formatAccuracy`, `formatMeters`, `formatSecondsPrecise`,
+  `formatPercent`, `formatWeekLabel`, `formatMonthLabel` (tests in `test/…/core/FormatTest.kt`). The
+  stand-ins `ui/record/RecordFormat.kt` and the stand-in half of `ui/progress/ProgressFormat.kt` are
+  gone; Record, dev compare and Progress import from `core.util`.
+- **SCR-A-2** (docs) → §2.5 and §3.1 above.
+- **SCR-B-1** → `RunSeriesBuilder.build(filteredPoints, sensorSamples = emptyList())`. B's overload is now
+  the override. D still passes only points because it does not chart cadence.
+- **SCR-B-2** → `MapRoute.fromTrackPoints` drops `paused` points. B keeps fixes recorded during a pause
+  in FILTERED (`paused = true`, distance held, no pace or segment), so without this the map would draw
+  the walk made during a pause.
+
+**Integrator changes beyond the SCRs:**
+1. **Live clock** (A's known gap): B's live `movingMillis` leaves out detected stops, so a clock built on
+   it would stop at traffic lights, which amounts to auto-pause (rejected). `LiveStats` gained
+   `pausedMillis` (default 0, filled by B) and `activeMillis = elapsed − paused`. The Record screen
+   "Time" stat and the notification chronometer use `activeMillis`; moving time stays in the analysis
+   and on Run detail.
+2. **Offline area retry** (C's known gap): `RunDetailViewModel` calls `downloadRunArea` when the run's
+   area status is NONE or FAILED. The download is tied to the screen, so leaving cancels it and the
+   next open retries.
+3. No stubs remain: `StubAnalysis`, `StubRouteCanvas` and `StubRecordingController` were deleted by their
+   tracks, and `AppContainer` already builds the real modules through the CONTRACT files.
+
+**Build:** `./gradlew assembleDebug assembleRelease testDebugUnitTest` green on JDK 25 (226 JVM tests);
+`lintDebug` 0 errors (warnings only: UnusedResources, UseKtx, PluralsCandidate, InlinedApi,
+StaticFieldLeak in `BackupViewModel`).
+
+**Open after integration** (for the review/fix pass): no screen has been run on the emulator since the
+merge; MapLibre rendering and the offline download are unverified on real tiles; controller tests use a
+fake LiveMetrics, so a replay test of A against B's real LiveMetrics is still missing; `RunSaved` has no
+replay, so finishing from the notification while Record is off-screen does not open Run detail; a run
+whose analysis always throws loops back to the recovery prompt.
