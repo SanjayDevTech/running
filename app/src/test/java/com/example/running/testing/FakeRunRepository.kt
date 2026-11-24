@@ -59,13 +59,26 @@ class FakeRunRepository(
         return run
     }
 
+    /** The next this-many append calls throw (a full disk or transient I/O error). */
+    var failingAppends = 0
+
+    private fun maybeFailAppend() {
+        if (failingAppends > 0) {
+            failingAppends--
+            throw java.io.IOException("disk full")
+        }
+    }
+
     override suspend fun appendRawPoints(points: List<TrackPoint>) {
+        maybeFailAppend()
         require(points.all { it.kind == PointKind.RAW })
         points.groupBy { it.runId }.forEach { (id, pts) -> edit(id) { it.copy(points = it.points + pts) } }
     }
 
-    override suspend fun appendSensorSamples(runId: String, samples: List<SensorSample>) =
+    override suspend fun appendSensorSamples(runId: String, samples: List<SensorSample>) {
+        maybeFailAppend()
         edit(runId) { it.copy(sensorSamples = it.sensorSamples + samples) }
+    }
 
     override suspend fun startPause(runId: String, atMillis: Long) = edit(runId) { g ->
         if (g.pauses.any { it.endMillis == null }) g else g.copy(pauses = g.pauses + PauseInterval(atMillis, null))

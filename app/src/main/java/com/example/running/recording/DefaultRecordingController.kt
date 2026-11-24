@@ -45,6 +45,12 @@ internal data class ControllerConfig(
     val flushMillis: Long = 5_000,
     /** A user-confirmed resume after a longer gap records the gap as a pause. */
     val manualResumeGapPauseMillis: Long = 60_000,
+    /**
+     * Auto-resume only when the last persisted data is at most this old. An older interruption (phone
+     * died or rebooted mid-run, app opened hours later) goes to the resume/finish prompt instead of
+     * silently restarting GPS with the whole gap counted as active time.
+     */
+    val autoResumeMaxGapMillis: Long = 10 * 60_000,
 )
 
 /**
@@ -216,7 +222,7 @@ internal class DefaultRecordingController(
         if (current is RecordingState.Saving || current is RecordingState.NeedsRecoveryDecision) return false
         val run = repository.findActiveRun() ?: return false
         val decision = RecoveryPolicy.decide(platform.hasBackgroundLocation(), recoveryStore.autoResumeAttempts(run.id))
-        if (decision == RecoveryDecision.AUTO_RESUME) {
+        if (decision == RecoveryDecision.AUTO_RESUME && isRecentInterruption(run)) {
             // From the service restart the service itself is already running.
             val serviceRunning = origin == RecoveryOrigin.SERVICE_RESTART || platform.startRecordingService()
             if (serviceRunning) {
@@ -227,6 +233,11 @@ internal class DefaultRecordingController(
         }
         askUser(run, alert = origin == RecoveryOrigin.SERVICE_RESTART)
         return false
+    }
+
+    private suspend fun isRecentInterruption(run: Run): Boolean {
+        val input = repository.loadAnalysisInput(run.id, OPEN_END_MILLIS, settings.current().profile)
+        return clock.nowMillis() - lastRecordedMillis(input) <= config.autoResumeMaxGapMillis
     }
 
     private suspend fun askUser(run: Run, alert: Boolean) {

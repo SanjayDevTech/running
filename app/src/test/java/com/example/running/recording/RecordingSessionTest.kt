@@ -46,4 +46,18 @@ class RecordingSessionTest {
         assertThat(pauses.single().startMillis).isEqualTo(T0 + 10_000)
         assertThat(pauses.single().endMillis).isEqualTo(T0 + 20_000)
     }
+
+    @Test fun failedWriteKeepsTheBatchForTheNextFlush() = runTest {
+        val (s, repo) = session()
+        straightFixes(5).forEach { s.onFix(it, isPrimary = true) }
+        s.onSteps(com.example.running.core.model.StepEvent(T0 + 3_000, 2))
+        repo.failingAppends = 1
+        runCatching { s.flush(T0 + 5_000) }
+        assertThat(repo.getRawPoints("r")).isEmpty()
+        straightFixes(7).drop(5).forEach { s.onFix(it, isPrimary = true) }
+        s.flush(T0 + 10_000)
+        assertThat(repo.getRawPoints("r").map { it.timeMillis })
+            .containsExactly(T0 + 2_000, T0 + 3_000, T0 + 4_000, T0 + 5_000, T0 + 6_000).inOrder()
+        assertThat(repo.getRunGraph("r")!!.sensorSamples).hasSize(2)
+    }
 }

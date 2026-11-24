@@ -11,6 +11,8 @@ import com.example.running.core.util.AppDispatchers
 import com.example.running.data.repo.RunRepository
 import com.example.running.data.settings.SettingsRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,7 @@ internal class RunDetailViewModel(
 ) : ViewModel() {
 
     private val deleting = MutableStateFlow(false)
+    private var retryJob: Job? = null
 
     /** Reloaded only when the analysis result changes, not on rename / type change. */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -96,7 +99,8 @@ internal class RunDetailViewModel(
      */
     private fun retryOfflineArea(route: MapRoute) {
         val bounds = route.bounds ?: return
-        viewModelScope.launch {
+        retryJob?.cancel()
+        retryJob = viewModelScope.launch {
             val status = offline.status(runId)
             if ((status == OfflineAreaStatus.NONE || status == OfflineAreaStatus.FAILED) && !deleting.value) {
                 offline.downloadRunArea(runId, bounds)
@@ -104,10 +108,15 @@ internal class RunDetailViewModel(
         }
     }
 
-    /** deleteRun -> deleteRunArea -> [onDone] (architecture.md §3.8). */
+    /**
+     * deleteRun -> deleteRunArea -> [onDone] (architecture.md §3.8). A retry download still running
+     * is cancelled first; deleteRunArea also cancels any other in-flight download for this run, so
+     * neither can hold the screen on Loading until the download times out.
+     */
     fun delete(onDone: () -> Unit) {
         deleting.value = true
         viewModelScope.launch {
+            retryJob?.cancelAndJoin()
             repository.deleteRun(runId)
             offline.deleteRunArea(runId)
             onDone()

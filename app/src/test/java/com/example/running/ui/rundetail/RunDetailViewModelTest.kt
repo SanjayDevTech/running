@@ -98,6 +98,20 @@ class RunDetailViewModelTest {
         assertThat(done).isTrue()
     }
 
+    @Test fun deleteDoesNotWaitForSlowOfflineRetry() = runTest(mainRule.testDispatcher) {
+        val id = seed()
+        offline.downloadGate = kotlinx.coroutines.CompletableDeferred() // never completes
+        val model = vm(id)
+        model.state.content() // opening starts the retry, which now hangs on the "network"
+        assertThat(offline.downloads.map { it.first }).containsExactly(id)
+        var done = false
+        model.delete { done = true }
+        advanceUntilIdle()
+        assertThat(done).isTrue()
+        assertThat(repo.getRun(id)).isNull()
+        assertThat(offline.deleted).containsExactly(id)
+    }
+
     @Test fun devCompareOnlyWhenUnlockedAndDualEngine() = runTest(mainRule.testDispatcher) {
         val id = seed()
         val g = repo.getRunGraph(id)!!

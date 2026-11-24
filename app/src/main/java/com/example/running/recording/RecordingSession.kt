@@ -72,17 +72,22 @@ internal class RecordingSession(
         pendingSamples += SensorSample(SensorType.PRESSURE, sample.timeMillis, sample.hPa)
     }
 
+    /**
+     * Writes the buffered batches. Items leave the buffer only after their write succeeded, so a
+     * failed write (disk full, transient I/O) is retried by the next flush instead of being lost.
+     * New items may be appended while a write is suspended; they stay queued behind the batch.
+     */
     suspend fun flush(nowMillis: Long) {
         lastFlushMillis = nowMillis
         if (pendingPoints.isNotEmpty()) {
             val batch = pendingPoints.toList()
-            pendingPoints.clear()
             repository.appendRawPoints(batch)
+            pendingPoints.subList(0, batch.size).clear()
         }
         if (pendingSamples.isNotEmpty()) {
             val batch = pendingSamples.toList()
-            pendingSamples.clear()
             repository.appendSensorSamples(runId, batch)
+            pendingSamples.subList(0, batch.size).clear()
         }
     }
 

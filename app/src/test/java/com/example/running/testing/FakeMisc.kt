@@ -17,9 +17,12 @@ class FakeMapOfflineManager(var downloadResult: Boolean = true) : MapOfflineMana
     val statuses = mutableMapOf<String, OfflineAreaStatus>()
     val downloads = mutableListOf<Pair<String, GeoBounds>>()
     val deleted = mutableListOf<String>()
+    /** When set, downloadRunArea suspends on it (a slow network). */
+    var downloadGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     override suspend fun downloadRunArea(runId: String, bounds: GeoBounds): Boolean {
         downloads += runId to bounds
+        downloadGate?.await()
         statuses[runId] = if (downloadResult) OfflineAreaStatus.READY else OfflineAreaStatus.FAILED
         return downloadResult
     }

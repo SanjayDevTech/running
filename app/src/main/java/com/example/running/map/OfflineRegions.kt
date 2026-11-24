@@ -4,6 +4,12 @@ import com.example.running.core.contracts.MapOfflineManager
 import com.example.running.core.model.GeoBounds
 import com.example.running.core.model.OfflineAreaStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -29,31 +35,44 @@ internal interface OfflineBackend {
 internal class RegionOfflineManager(private val backend: OfflineBackend) : MapOfflineManager {
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
     private val failed = ConcurrentHashMap.newKeySet<String>()
+    /** The running download per run, so [deleteRunArea] can cancel it instead of waiting for it. */
+    private val downloads = ConcurrentHashMap<String, Job>()
     private val mutex = Mutex()
 
     override suspend fun downloadRunArea(runId: String, bounds: GeoBounds): Boolean {
         if (!inFlight.add(runId)) return false
         failed.remove(runId)
         var ok = false
+        var job: Job? = null
         try {
-            mutex.withLock {
-                backend.find(runId).forEach { backend.delete(it) }
-                val handle = backend.create(runId, bounds)
-                ok = handle != null && backend.download(handle)
-                if (!ok && handle != null) backend.delete(handle)
+            coroutineScope {
+                val download = launch {
+                    mutex.withLock {
+                        backend.find(runId).forEach { backend.delete(it) }
+                        val handle = backend.create(runId, bounds)
+                        ok = handle != null && backend.download(handle)
+                        if (!ok && handle != null) withContext(NonCancellable) { backend.delete(handle) }
+                    }
+                }
+                job = download
+                downloads[runId] = download
+                download.join()
             }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             ok = false
         } finally {
-            if (!ok) failed.add(runId)
+            // deleteRunArea removes the entry before cancelling, so a missing entry means "deleted".
+            val deleted = job?.let { !downloads.remove(runId, it) } ?: false
+            if (!ok && !deleted) failed.add(runId)
             inFlight.remove(runId)
         }
         return ok
     }
 
     override suspend fun deleteRunArea(runId: String) {
+        downloads.remove(runId)?.cancelAndJoin()
         failed.remove(runId)
         mutex.withLock { backend.find(runId).forEach { backend.delete(it) } }
     }

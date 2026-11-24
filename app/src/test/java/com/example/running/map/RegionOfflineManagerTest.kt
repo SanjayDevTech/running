@@ -3,6 +3,9 @@ package com.example.running.map
 import com.example.running.core.model.GeoBounds
 import com.example.running.core.model.OfflineAreaStatus
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -13,6 +16,8 @@ class RegionOfflineManagerTest {
         var nextHandle = 1L
         var createFails = false
         var downloadResult = true
+        /** When set, download suspends until it completes (or is cancelled). */
+        var gate: CompletableDeferred<Boolean>? = null
         val deleted = mutableListOf<Long>()
 
         override suspend fun find(runId: String) = regions.filterValues { it == runId }.keys.toList()
@@ -21,6 +26,7 @@ class RegionOfflineManagerTest {
             return nextHandle++.also { regions[it] = runId }
         }
         override suspend fun download(handle: Long): Boolean {
+            gate?.let { return it.await() }
             if (downloadResult) complete += handle
             return downloadResult
         }
@@ -94,6 +100,21 @@ class RegionOfflineManagerTest {
         m.deleteRunArea("r1")
         assertThat(m.status("r1")).isEqualTo(OfflineAreaStatus.NONE)
         assertThat(m.status("r2")).isEqualTo(OfflineAreaStatus.READY)
+    }
+
+    @Test
+    fun deleteCancelsInFlightDownloadInsteadOfWaiting() = runTest {
+        val backend = FakeBackend().apply { gate = CompletableDeferred() }
+        val m = RegionOfflineManager(backend)
+        var result: Boolean? = null
+        val download = launch { result = m.downloadRunArea("r1", bounds) }
+        runCurrent()
+        assertThat(m.status("r1")).isEqualTo(OfflineAreaStatus.DOWNLOADING)
+        m.deleteRunArea("r1") // would hang here if it waited for the (never completing) download
+        download.join()
+        assertThat(result).isFalse()
+        assertThat(backend.regions).isEmpty()
+        assertThat(m.status("r1")).isEqualTo(OfflineAreaStatus.NONE)
     }
 
     @Test

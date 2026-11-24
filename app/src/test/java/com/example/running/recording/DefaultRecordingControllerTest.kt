@@ -336,6 +336,25 @@ class DefaultRecordingControllerTest {
         assertThat(h.store.autoResumeAttempts(runId)).isEqualTo(0)
     }
 
+    @Test fun oldInterruptionAsksInsteadOfAutoResuming() = runTest {
+        val h = Harness(this, platform = FakeRecordingPlatform(backgroundLocation = true))
+        val runId = "stale"
+        val startedAt = T0 - 2 * 3_600_000L - 60_000
+        h.repo.createActiveRun(runId, startedAt, "Asia/Kolkata", LocationEngineMode.GOOGLE, LocationEngine.PLAY, false)
+        h.repo.appendRawPoints(straightFixes(60, startMillis = startedAt).map { it.toRawPoint(runId, isPrimary = true, paused = false) })
+        h.controller.checkForInterruptedRun()   // last data is 2 h old
+        runCurrent()
+        assertThat((h.state as RecordingState.NeedsRecoveryDecision).runId).isEqualTo(runId)
+        assertThat(h.platform.serviceStarts).isEqualTo(0)
+        assertThat(h.store.autoResumeAttempts(runId)).isEqualTo(0)
+
+        h.controller.resumeInterrupted(runId)   // the user chose to resume: the 2 h gap is a pause
+        runCurrent()
+        val gap = h.graph(runId).pauses.single()
+        assertThat(gap.startMillis).isEqualTo(startedAt + 59_000)
+        assertThat(gap.endMillis).isEqualTo(T0)
+    }
+
     @Test fun asksWithoutBackgroundLocationThenResumesWithGapAsPause() = runTest {
         val h = Harness(this, platform = FakeRecordingPlatform(backgroundLocation = false))
         val runId = h.seedInterruptedRun()
