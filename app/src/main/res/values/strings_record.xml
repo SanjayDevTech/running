@@ -24,18 +24,9 @@
     <string name="record_engine_switched">Switched to the %1$s location engine</string>
 
     <!-- Live stats -->
-    <string name="record_stat_distance">Distance</string>
-    <string name="record_stat_time">Time</string>
-    <string name="record_stat_pace">Pace</string>
     <string name="record_stat_avg_pace">Avg pace</string>
     <string name="record_stat_last_km">Last km</string>
     <string name="record_stat_elevation">Elev gain</string>
-    <string name="record_stat_cadence">Cadence</string>
-    <string name="record_stat_calories">Calories</string>
-    <string name="record_unit_km">km</string>
-    <string name="record_unit_pace">/km</string>
-    <string name="record_unit_spm">spm</string>
-    <string name="record_unit_kcal">kcal</string>
     <string name="record_paused">Paused</string>
     <string name="record_saving">Saving run</string>
 

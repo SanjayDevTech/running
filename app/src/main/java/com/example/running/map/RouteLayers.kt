@@ -2,6 +2,7 @@ package com.example.running.map
 
 import androidx.compose.ui.graphics.toArgb
 import com.example.running.ui.theme.Accent
+import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.TextPrimary
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
@@ -39,7 +40,7 @@ internal class RouteLayers private constructor(
 
             style.addLayer(
                 LineLayer("$ROUTE-casing", ROUTE).withProperties(
-                    PropertyFactory.lineColor("#000000"),
+                    PropertyFactory.lineColor(Black.toArgb()),
                     PropertyFactory.lineOpacity(0.55f),
                     PropertyFactory.lineWidth(8f),
                     PropertyFactory.lineCap(Property.LINE_CAP_ROUND),

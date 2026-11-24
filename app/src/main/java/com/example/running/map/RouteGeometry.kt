@@ -1,6 +1,5 @@
 package com.example.running.map
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import com.example.running.core.model.GeoPoint
@@ -10,11 +9,11 @@ import com.example.running.core.model.RoutePoint
 import com.example.running.core.model.SegmentKind
 import com.example.running.core.util.cosLatFactor
 import com.example.running.core.util.interpolate
+import com.example.running.core.util.percentile
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.PaceScale
-import com.example.running.ui.theme.Stop
 import com.example.running.ui.theme.StepFilled
-import com.example.running.ui.theme.Walk
+import com.example.running.ui.theme.color
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -41,14 +40,7 @@ internal class PaceNormalizer private constructor(private val lo: Double, privat
         fun of(paces: List<Double>): PaceNormalizer {
             val sorted = paces.filter { it.isFinite() && it > 0.0 }.sorted()
             if (sorted.isEmpty()) return PaceNormalizer(0.0, 0.0)
-            return PaceNormalizer(percentile(sorted, 0.05), percentile(sorted, 0.95))
-        }
-
-        private fun percentile(sorted: List<Double>, p: Double): Double {
-            val pos = p * (sorted.size - 1)
-            val i = pos.toInt()
-            val frac = pos - i
-            return if (i + 1 < sorted.size) sorted[i] + (sorted[i + 1] - sorted[i]) * frac else sorted[i]
+            return PaceNormalizer(percentile(sorted, 0.05)!!, percentile(sorted, 0.95)!!)
         }
     }
 }
@@ -68,11 +60,7 @@ internal object RouteColors {
 
     val stepFilledArgb: Int = StepFilled.toArgb()
 
-    fun kindArgb(kind: SegmentKind?): Int = when (kind) {
-        SegmentKind.WALK -> Walk
-        SegmentKind.STOP -> Stop
-        SegmentKind.RUN, null -> Accent
-    }.toArgb()
+    fun kindArgb(kind: SegmentKind?): Int = kind.color().toArgb()
 
     fun hex(argb: Int): String = "#" + (argb and 0xFFFFFF).toString(16).padStart(6, '0')
 }

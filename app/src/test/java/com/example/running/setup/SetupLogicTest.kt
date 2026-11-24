@@ -110,8 +110,10 @@ class BackupIntervalsTest {
     @Test
     fun labelsAndOffOption() {
         assertThat(BackupIntervals.OPTIONS.first()).isEqualTo(0)
-        assertThat(BackupIntervals.label(0)).isEqualTo("Off")
-        assertThat(BackupIntervals.label(168)).isEqualTo("Weekly")
-        assertThat(BackupIntervals.label(5)).isEqualTo("Every 5h")
+        assertThat(BackupIntervals.label(0)).isEqualTo(BackupIntervals.Label.Off)
+        assertThat(BackupIntervals.label(24)).isEqualTo(BackupIntervals.Label.Daily)
+        assertThat(BackupIntervals.label(72)).isEqualTo(BackupIntervals.Label.EveryDays(3))
+        assertThat(BackupIntervals.label(168)).isEqualTo(BackupIntervals.Label.Weekly)
+        assertThat(BackupIntervals.label(5)).isEqualTo(BackupIntervals.Label.EveryHours(5))
     }
 }

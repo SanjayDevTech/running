@@ -4,6 +4,7 @@ import com.example.running.core.model.GeoPoint
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.TrackPoint
 import com.example.running.core.util.pathLengthMeters
+import com.example.running.core.util.percentile
 
 /** Per-engine numbers for the hidden dual-engine comparison. */
 internal data class EngineStats(
@@ -54,11 +55,4 @@ private fun movingStretches(points: List<TrackPoint>): List<List<TrackPoint>> {
     }
     if (current.size > 1) out += current
     return out
-}
-
-/** Nearest-rank percentile of an ascending list. */
-internal fun percentile(sorted: List<Double>, p: Double): Double? {
-    if (sorted.isEmpty()) return null
-    val rank = kotlin.math.ceil(p * sorted.size).toInt().coerceIn(1, sorted.size)
-    return sorted[rank - 1]
 }

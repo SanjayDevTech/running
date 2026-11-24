@@ -1,7 +1,6 @@
 package com.example.running.ui.activities
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,9 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,7 +31,9 @@ import com.example.running.di.appViewModel
 import com.example.running.map.RouteThumbnail
 import com.example.running.ui.components.ActivityFilterChips
 import com.example.running.ui.components.ActivityTypeIcon
+import com.example.running.ui.components.AppCard
 import com.example.running.ui.components.EmptyState
+import com.example.running.ui.components.ScreenTitle
 import com.example.running.ui.components.SectionHeader
 import com.example.running.ui.components.StatItem
 import com.example.running.ui.components.StatRow
@@ -43,8 +42,8 @@ import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Radius
-import com.example.running.ui.theme.Raised1
 import com.example.running.ui.theme.Raised4
+import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
 
 /** CONTRACT(D). Public signature frozen (architecture.md §3.8). */
@@ -53,13 +52,8 @@ fun ActivitiesScreen(onOpenRun: (runId: String) -> Unit) {
     val vm = appViewModel { c -> ActivitiesViewModel(c.runRepository, c.core.clock) }
     val state by vm.state.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize().background(Black).statusBarsPadding()) {
-        Text(
-            stringResource(R.string.history_title),
-            style = AppText.titleL,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = Spacing.gutter, vertical = Spacing.m),
-        )
+    Column(Modifier.fillMaxSize().background(Black)) {
+        ScreenTitle(stringResource(R.string.history_title))
         ActivityFilterChips(
             selected = state.filter,
             onSelect = vm::setFilter,
@@ -100,18 +94,12 @@ fun ActivitiesScreen(onOpenRun: (runId: String) -> Unit) {
 @Composable
 private fun WeekStrip(week: WeekSummaryUi) {
     val initials = stringArrayResource(R.array.history_day_initials)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(Raised1)
-            .padding(Spacing.l),
-    ) {
+    AppCard {
         SectionHeader(stringResource(R.string.history_this_week))
         StatRow(
             stats = listOf(
-                StatItem(stringResource(R.string.history_week_distance), week.distanceKm, stringResource(R.string.detail_unit_km)),
-                StatItem(stringResource(R.string.history_week_time), week.duration),
+                StatItem(stringResource(R.string.stat_distance), week.distanceKm, stringResource(R.string.unit_km)),
+                StatItem(stringResource(R.string.stat_time), week.duration),
                 StatItem(stringResource(R.string.history_week_activities), week.count.toString()),
             ),
             size = StatSize.L,
@@ -151,15 +139,7 @@ private fun WeekStrip(week: WeekSummaryUi) {
 
 @Composable
 private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(Raised1)
-            .clickable(onClick = onClick)
-            .padding(Spacing.l),
-        verticalArrangement = Arrangement.spacedBy(Spacing.m),
-    ) {
+    AppCard(onClick = onClick, verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
             ActivityTypeIcon(card.type, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
@@ -169,9 +149,9 @@ private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit) {
         }
         StatRow(
             stats = listOf(
-                StatItem(stringResource(R.string.history_card_distance), card.distanceKm, stringResource(R.string.detail_unit_km)),
-                StatItem(stringResource(R.string.history_card_time), card.duration),
-                StatItem(stringResource(R.string.history_card_pace), card.pace, stringResource(R.string.detail_unit_pace)),
+                StatItem(stringResource(R.string.stat_distance), card.distanceKm, stringResource(R.string.unit_km)),
+                StatItem(stringResource(R.string.stat_time), card.duration),
+                StatItem(stringResource(R.string.stat_pace), card.pace, stringResource(R.string.unit_pace)),
             ),
             size = StatSize.M,
         )
@@ -179,7 +159,7 @@ private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit) {
             RouteThumbnail(
                 route = route,
                 cacheKey = card.id,
-                modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(Radius.sm)),
+                modifier = Modifier.fillMaxWidth().height(Sizes.thumbnailHeight).clip(RoundedCornerShape(Radius.sm)),
             )
         }
     }

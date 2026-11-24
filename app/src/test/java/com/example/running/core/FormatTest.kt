@@ -8,6 +8,7 @@ import com.example.running.core.util.formatDistanceKm
 import com.example.running.core.util.formatDuration
 import com.example.running.core.util.formatDurationShort
 import com.example.running.core.util.formatElevation
+import com.example.running.core.util.formatFileSize
 import com.example.running.core.util.formatMeters
 import com.example.running.core.util.formatMonthLabel
 import com.example.running.core.util.formatPace
@@ -18,11 +19,12 @@ import com.example.running.core.util.formatRunDate
 import com.example.running.core.util.formatRunDateTime
 import com.example.running.core.util.formatSecondsPrecise
 import com.example.running.core.util.formatWeekLabel
+import com.example.running.core.util.formatWeightKg
 import com.example.running.testing.FakeClock
 import com.google.common.truth.Truth.assertThat
-import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import org.junit.Test
 
 class FormatTest {
     private val zone = "Asia/Kolkata"
@@ -58,6 +60,12 @@ class FormatTest {
         assertThat(formatCalories(412.4)).isEqualTo("412")
         assertThat(formatCalories(null)).isEqualTo("–")
         assertThat(formatCadence(171.7)).isEqualTo("172")
+        assertThat(formatWeightKg(72.0)).isEqualTo("72")
+        assertThat(formatWeightKg(72.5)).isEqualTo("72.5")
+        assertThat(formatWeightKg(72.25)).isEqualTo("72.3")
+        assertThat(formatFileSize(1)).isEqualTo("1 KB")
+        assertThat(formatFileSize(12_345)).isEqualTo("13 KB")
+        assertThat(formatFileSize(1_250_000)).isEqualTo("1.3 MB")
     }
 
     @Test fun dates() {

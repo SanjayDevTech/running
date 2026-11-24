@@ -156,16 +156,17 @@ class ProgressLogicTest {
             longestDuration = null,
         )
         val rows = buildPbRows(pb, zone.id)
-        assertThat(rows.map { it.id }).containsExactly(
-            PbId.K1, PbId.K5, PbId.K10, PbId.HALF, PbId.LONGEST_DISTANCE, PbId.LONGEST_DURATION,
+        assertThat(rows.map { it.kind }).containsExactly(
+            *BestEffortDistance.entries.map { PbKind.Effort(it) }.toTypedArray(),
+            PbKind.LongestDistance, PbKind.LongestDuration,
         ).inOrder()
-        val k5 = rows.first { it.id == PbId.K5 }
+        val k5 = rows.first { it.kind == PbKind.Effort(BestEffortDistance.K5) }
         assertThat(k5.value).isEqualTo("25:00")
         assertThat(k5.pace).isEqualTo("5:00 /km")
         assertThat(k5.runId).isEqualTo("r1")
         assertThat(k5.date).isEqualTo("24 Nov 2026")
-        assertThat(rows.first { it.id == PbId.K1 }.runId).isNull()
-        assertThat(rows.first { it.id == PbId.LONGEST_DISTANCE }.value).isEqualTo("21.00 km")
-        assertThat(rows.first { it.id == PbId.LONGEST_DURATION }.value).isNull()
+        assertThat(rows.first { it.kind == PbKind.Effort(BestEffortDistance.K1) }.runId).isNull()
+        assertThat(rows.first { it.kind == PbKind.LongestDistance }.value).isEqualTo("21.00 km")
+        assertThat(rows.first { it.kind == PbKind.LongestDuration }.value).isNull()
     }
 }

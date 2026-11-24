@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Pause
@@ -45,26 +44,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.running.R
 import com.example.running.core.model.GeoPoint
-import com.example.running.core.model.GpsQuality
 import com.example.running.core.model.GpsStatus
 import com.example.running.core.model.MapRoute
 import com.example.running.core.model.RecordingEvent
 import com.example.running.core.model.RecordingState
 import com.example.running.core.model.RouteMapMode
 import com.example.running.core.system.Permissions
+import com.example.running.core.util.formatAccuracy
 import com.example.running.core.util.formatCadence
 import com.example.running.core.util.formatCalories
 import com.example.running.core.util.formatDistanceKm
 import com.example.running.core.util.formatDuration
 import com.example.running.core.util.formatElevation
 import com.example.running.core.util.formatPace
-import com.example.running.core.util.formatAccuracy
 import com.example.running.core.util.formatRunDateTime
 import com.example.running.di.LocalAppContainer
 import com.example.running.di.appViewModel
@@ -73,27 +70,27 @@ import com.example.running.ui.components.CircleIconButton
 import com.example.running.ui.components.EmptyState
 import com.example.running.ui.components.EngineChip
 import com.example.running.ui.components.PrimaryButton
+import com.example.running.ui.components.ScreenTitle
 import com.example.running.ui.components.SecondaryButton
 import com.example.running.ui.components.StatItem
 import com.example.running.ui.components.StatRow
 import com.example.running.ui.components.StatSize
 import com.example.running.ui.components.StatTile
+import com.example.running.ui.components.StatusDot
 import com.example.running.ui.components.displayName
+import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Danger
 import com.example.running.ui.theme.OnAccent
-import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised2
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
-import com.example.running.ui.theme.Success
-import com.example.running.ui.theme.TextPrimary
-import com.example.running.ui.theme.TextSecondary
 import com.example.running.ui.theme.TextTertiary
 import com.example.running.ui.theme.Warning
+import com.example.running.ui.theme.color
 import kotlinx.coroutines.launch
 
 /** CONTRACT(A). Public signature frozen (architecture.md §3.8). */
@@ -245,11 +242,7 @@ private fun ReadyContent(
     onFixAccuracy: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = Spacing.gutter, vertical = Spacing.m),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.record_title), style = AppText.titleL, color = TextPrimary, modifier = Modifier.weight(1f))
+        ScreenTitle(stringResource(R.string.record_title)) {
             EngineChip(engine = gps.engine, fallback = gps.fallbackActive, quality = gps.quality)
         }
         RouteMap(
@@ -301,18 +294,13 @@ private fun GpsLine(gps: GpsStatus) {
         GpsHint.READY -> stringResource(R.string.record_gps_ready, formatAccuracy(gps.accuracyM))
         GpsHint.WEAK -> stringResource(R.string.record_gps_weak, formatAccuracy(gps.accuracyM))
     }
-    val dot = when (gps.quality) {
-        GpsQuality.GOOD -> Success
-        GpsQuality.FAIR, GpsQuality.POOR -> Warning
-        GpsQuality.NONE -> TextTertiary
-    }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+        StatusDot(gps.quality.color())
         Spacer(Modifier.width(Spacing.s))
         Text(
             text,
             style = AppText.bodyS,
-            color = if (hint == GpsHint.WEAK) Warning else TextSecondary,
+            color = if (hint == GpsHint.WEAK) Warning else MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
     }
@@ -357,7 +345,7 @@ private fun RecordingContent(
                 Text(
                     stringResource(R.string.record_paused).uppercase(),
                     style = AppText.eyebrow,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radius.pill))
                         .background(Raised3)
@@ -376,18 +364,18 @@ private fun RecordingContent(
             verticalArrangement = Arrangement.spacedBy(Spacing.l),
         ) {
             StatTile(
-                label = stringResource(R.string.record_stat_distance),
+                label = stringResource(R.string.stat_distance),
                 value = formatDistanceKm(stats.distanceM),
-                unit = stringResource(R.string.record_unit_km),
+                unit = stringResource(R.string.unit_km),
                 size = StatSize.Hero,
                 alignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
             )
-            val paceUnit = stringResource(R.string.record_unit_pace)
+            val paceUnit = stringResource(R.string.unit_pace)
             StatRow(
                 listOf(
-                    StatItem(stringResource(R.string.record_stat_time), formatDuration(stats.activeMillis)),
-                    StatItem(stringResource(R.string.record_stat_pace), formatPace(stats.currentPaceSecPerKm), paceUnit),
+                    StatItem(stringResource(R.string.stat_time), formatDuration(stats.activeMillis)),
+                    StatItem(stringResource(R.string.stat_pace), formatPace(stats.currentPaceSecPerKm), paceUnit),
                     StatItem(stringResource(R.string.record_stat_avg_pace), formatPace(stats.avgPaceSecPerKm), paceUnit),
                 ),
             )
@@ -395,8 +383,8 @@ private fun RecordingContent(
                 listOf(
                     StatItem(stringResource(R.string.record_stat_last_km), formatPace(stats.lastSplitPaceSecPerKm), paceUnit),
                     StatItem(stringResource(R.string.record_stat_elevation), formatElevation(stats.elevationGainM)),
-                    StatItem(stringResource(R.string.record_stat_cadence), formatCadence(stats.cadenceSpm), stringResource(R.string.record_unit_spm)),
-                    StatItem(stringResource(R.string.record_stat_calories), formatCalories(stats.caloriesKcal), stringResource(R.string.record_unit_kcal)),
+                    StatItem(stringResource(R.string.stat_cadence), formatCadence(stats.cadenceSpm), stringResource(R.string.unit_spm)),
+                    StatItem(stringResource(R.string.stat_calories), formatCalories(stats.caloriesKcal), stringResource(R.string.unit_kcal)),
                 ),
                 size = StatSize.M,
             )
@@ -434,7 +422,7 @@ private fun RecordingContent(
                         label = stringResource(R.string.record_action_pause),
                         onClick = onPause,
                         containerColor = Raised3,
-                        contentColor = TextPrimary,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -461,7 +449,7 @@ private fun ControlButton(
             contentColor = contentColor,
             enabled = enabled,
         )
-        Text(label.uppercase(), style = AppText.eyebrow, color = if (enabled) TextPrimary else TextTertiary)
+        Text(label.uppercase(), style = AppText.eyebrow, color = if (enabled) MaterialTheme.colorScheme.onSurface else TextTertiary)
     }
 }
 
@@ -474,8 +462,8 @@ private fun SavingContent() {
         verticalArrangement = Arrangement.spacedBy(Spacing.l, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CircularProgressIndicator(color = TextPrimary)
-        Text(stringResource(R.string.record_saving), style = AppText.titleM, color = TextPrimary)
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(R.string.record_saving), style = AppText.titleM, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -490,16 +478,16 @@ private fun RecoveryContent(
         Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = Spacing.gutter, vertical = Spacing.xxl),
         verticalArrangement = Arrangement.spacedBy(Spacing.l, Alignment.CenterVertically),
     ) {
-        Text(stringResource(R.string.record_recovery_title), style = AppText.titleL, color = TextPrimary)
+        Text(stringResource(R.string.record_recovery_title), style = AppText.titleL, color = MaterialTheme.colorScheme.onSurface)
         Text(
             stringResource(R.string.record_recovery_body, formatRunDateTime(state.startedAtMillis, zoneId)),
             style = AppText.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         StatTile(
-            label = stringResource(R.string.record_stat_distance),
+            label = stringResource(R.string.stat_distance),
             value = formatDistanceKm(state.distanceM),
-            unit = stringResource(R.string.record_unit_km),
+            unit = stringResource(R.string.unit_km),
             size = StatSize.XL,
         )
         Spacer(Modifier.size(Spacing.s))

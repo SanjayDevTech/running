@@ -11,6 +11,7 @@ import com.example.running.core.model.RoutePoint
 import com.example.running.core.model.RunnerProfile
 import com.example.running.core.model.SegmentKind
 import com.example.running.core.model.StepEvent
+import com.example.running.core.util.MAX_DISPLAY_PACE_SEC_PER_KM
 import com.example.running.core.util.METERS_PER_KM
 import com.example.running.core.util.paceSecPerKm
 import kotlin.math.hypot
@@ -315,5 +316,5 @@ internal class DefaultLiveMetrics(
         return (b.distance - a.distance) / (m / 1000.0)
     }
 
-    private fun currentPace(): Double? = currentSpeed()?.let { paceSecPerKm(it) }?.let { min(it, 3_599.0) }
+    private fun currentPace(): Double? = currentSpeed()?.let { paceSecPerKm(it) }?.let { min(it, MAX_DISPLAY_PACE_SEC_PER_KM) }
 }

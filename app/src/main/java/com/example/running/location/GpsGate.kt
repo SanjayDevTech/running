@@ -5,13 +5,16 @@ import com.example.running.core.model.GpsStatus
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
 
+/** Waiting this long with any fresh fix unlocks a weak-signal start (also the Record screen countdown). */
+internal const val WEAK_START_TIMEOUT_MILLIS = 10_000L
+
 /**
  * Start gate and live GPS status. Start is allowed once a GOOD fix (<= 10 m) has been seen, or after
  * [weakTimeoutMillis] of waiting with any fresh fix (then with a weak-signal warning). A fix older than
  * [staleMillis] counts as no fix.
  */
 internal class GpsGate(
-    private val weakTimeoutMillis: Long = 10_000,
+    private val weakTimeoutMillis: Long = WEAK_START_TIMEOUT_MILLIS,
     private val staleMillis: Long = 5_000,
 ) {
     var engine: LocationEngine? = null

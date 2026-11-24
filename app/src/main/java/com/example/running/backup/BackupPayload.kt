@@ -276,11 +276,7 @@ internal fun RunSnapshot.toGraph(): RunGraph {
 }
 
 private fun StatsSnapshot.toDomain(): RunStats {
-    val bounds = if (minLat != null && minLon != null && maxLat != null && maxLon != null) {
-        GeoBounds(minLat, minLon, maxLat, maxLon)
-    } else {
-        null
-    }
+    val bounds = GeoBounds.ofNullable(minLat, minLon, maxLat, maxLon)
     return RunStats(
         distanceM = distanceM, elapsedMillis = elapsedMillis, movingMillis = movingMillis, pausedMillis = pausedMillis,
         avgPaceSecPerKm = avgPaceSecPerKm, maxSpeedMps = maxSpeedMps,

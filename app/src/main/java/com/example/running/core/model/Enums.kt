@@ -38,10 +38,16 @@ enum class GpsQuality {
     NONE, POOR, FAIR, GOOD;
 
     companion object {
+        /** Best accuracy band: at or below this a fix is GOOD (and unlocks Start at once). */
+        const val GOOD_MAX_ACCURACY_M = 10f
+
+        /** Worse than this a fix is POOR ("weak GPS"; the analysis step-fills such stretches). */
+        const val FAIR_MAX_ACCURACY_M = 20f
+
         fun fromAccuracy(accuracyM: Float?): GpsQuality = when {
             accuracyM == null -> NONE
-            accuracyM <= 10f -> GOOD
-            accuracyM <= 20f -> FAIR
+            accuracyM <= GOOD_MAX_ACCURACY_M -> GOOD
+            accuracyM <= FAIR_MAX_ACCURACY_M -> FAIR
             else -> POOR
         }
     }

@@ -44,7 +44,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.running.R
 import com.example.running.core.system.BatteryOptimization
 import com.example.running.core.system.Permissions
-import com.example.running.di.LocalAppContainer
 import com.example.running.di.appViewModel
 import com.example.running.setup.AndroidSetupStatusReader
 import com.example.running.setup.OnboardingStep
@@ -104,7 +103,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             stringResource(R.string.onboarding_step_of, step.ordinal + 1, OnboardingStep.entries.size),
             style = AppText.eyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Icon(stepIcon(step), contentDescription = null, tint = Accent, modifier = Modifier.size(40.dp))
+        Icon(stepIcon(step), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(40.dp))
         Text(stringResource(stepTitle(step)), style = AppText.titleL, color = MaterialTheme.colorScheme.onSurface)
         Text(stringResource(stepBody(step)), style = AppText.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
 

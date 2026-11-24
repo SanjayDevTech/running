@@ -6,8 +6,27 @@
     <string name="tab_progress">Progress</string>
     <string name="tab_settings">Settings</string>
     <string name="common_cancel">Cancel</string>
-    <string name="common_ok">OK</string>
     <string name="common_delete">Delete</string>
     <string name="common_save">Save</string>
     <string name="common_back">Back</string>
+
+    <!-- Stat labels and units shared by Record, Run detail, Activities and Progress. -->
+    <string name="stat_distance">Distance</string>
+    <string name="stat_time">Time</string>
+    <string name="stat_pace">Pace</string>
+    <string name="stat_elevation">Elevation</string>
+    <string name="stat_calories">Calories</string>
+    <string name="stat_cadence">Cadence</string>
+    <string name="unit_km">km</string>
+    <string name="unit_pace">/km</string>
+    <string name="unit_spm">spm</string>
+    <string name="unit_kcal">kcal</string>
+
+    <!-- Location engine chip. -->
+    <string name="engine_none">No GPS</string>
+    <string name="engine_with_fallback">%1$s · fallback</string>
+    <string name="filter_all">All</string>
+
+    <!-- One-line run row: distance in km, moving time. -->
+    <string name="run_row_summary">%1$s km · %2$s</string>
 </resources>

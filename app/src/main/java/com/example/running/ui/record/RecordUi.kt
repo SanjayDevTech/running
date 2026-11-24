@@ -2,6 +2,7 @@ package com.example.running.ui.record
 
 import com.example.running.core.model.GpsQuality
 import com.example.running.core.model.GpsStatus
+import com.example.running.location.WEAK_START_TIMEOUT_MILLIS
 
 /** What the pre-start GPS line says. */
 internal enum class GpsHint {
@@ -26,7 +27,7 @@ internal fun gpsHint(gps: GpsStatus): GpsHint = when {
 }
 
 /** Seconds until a weak-signal start unlocks (null once allowed or without any fix). */
-internal fun secondsUntilWeakStart(gps: GpsStatus, timeoutMillis: Long = 10_000): Int? {
+internal fun secondsUntilWeakStart(gps: GpsStatus, timeoutMillis: Long = WEAK_START_TIMEOUT_MILLIS): Int? {
     if (gps.startAllowed || gps.quality == GpsQuality.NONE) return null
     val left = timeoutMillis - gps.waitingMillis
     return if (left <= 0) null else ((left + 999) / 1000).toInt()

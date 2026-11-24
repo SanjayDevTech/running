@@ -21,12 +21,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.running.R
 import com.example.running.backup.BackupFile
+import com.example.running.core.util.formatFileSize
 import com.example.running.core.util.formatRunDateTime
 import com.example.running.di.LocalAppContainer
 import com.example.running.di.appViewModel
@@ -83,10 +85,11 @@ fun BackupScreen(onBack: () -> Unit) {
             }
 
             SectionHeader(stringResource(R.string.backup_schedule))
+            val intervalLabels = BackupIntervals.OPTIONS.associateWith { backupIntervalLabel(it) }
             ChoiceChips(
                 options = BackupIntervals.OPTIONS,
                 selected = ui.settings.backup.intervalHours.takeIf { it in BackupIntervals.OPTIONS } ?: 0,
-                label = BackupIntervals::label, onSelect = vm::setInterval,
+                label = { intervalLabels.getValue(it) }, onSelect = vm::setInterval,
             )
             Text(stringResource(R.string.backup_schedule_body), style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ui.settings.backup.lastBackupAtMillis?.let {
@@ -161,11 +164,20 @@ fun BackupScreen(onBack: () -> Unit) {
 private fun BackupFileRow(file: BackupFile, zone: String, onRestore: () -> Unit, onDelete: () -> Unit) {
     SettingsRow(
         title = file.name,
-        summary = formatRunDateTime(file.modifiedMillis, zone) + "  -  " + sizeLabel(file.sizeBytes),
+        summary = stringResource(R.string.backup_file_summary, formatRunDateTime(file.modifiedMillis, zone), formatFileSize(file.sizeBytes)),
         onClick = onRestore,
-        actionLabel = stringResource(R.string.backup_delete_file),
+        actionLabel = stringResource(R.string.common_delete),
         onAction = onDelete,
     )
+}
+
+@Composable
+private fun backupIntervalLabel(hours: Int): String = when (val l = BackupIntervals.label(hours)) {
+    BackupIntervals.Label.Off -> stringResource(R.string.backup_interval_off)
+    BackupIntervals.Label.Daily -> stringResource(R.string.backup_interval_daily)
+    BackupIntervals.Label.Weekly -> stringResource(R.string.backup_interval_weekly)
+    is BackupIntervals.Label.EveryDays -> pluralStringResource(R.plurals.backup_interval_every_days, l.days, l.days)
+    is BackupIntervals.Label.EveryHours -> pluralStringResource(R.plurals.backup_interval_every_hours, l.hours, l.hours)
 }
 
 @Composable
@@ -176,10 +188,7 @@ private fun messageText(m: BackupMessage): String = when (m) {
     is BackupMessage.Failed -> stringResource(R.string.backup_failed, m.reason)
 }
 
-private fun sizeLabel(bytes: Long): String = when {
-    bytes >= 1_000_000 -> "%.1f MB".format(java.util.Locale.US, bytes / 1_000_000.0)
-    else -> "${(bytes + 999) / 1000} KB"
-}
+
 
 /** "primary:Documents/Backups" -> "Documents/Backups". */
 private fun folderLabel(treeUri: String): String =

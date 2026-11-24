@@ -11,7 +11,14 @@ The tokens live in `ui/theme/` and the shared pieces in `ui/components/`.
 - **Raised near-black** where pure black would make a shape vanish: `Raised1` list cards, `Raised2`
   bottom bar and chips, `Raised3` sheets/dialogs/menus, `Raised4` pressed or selected fills. Charts
   sit on black; their plot area is not boxed.
-- Dividers are `Hairline`; chip and button borders are `Outline`.
+- Dividers are `Hairline` (`AppDivider`); chip and button borders are `Outline`. List cards are
+  `AppCard`, never a hand-built `clip + background(Raised1)` container.
+- Text colours in screens come from the colour-scheme roles: `MaterialTheme.colorScheme.onSurface`
+  for primary text and `onSurfaceVariant` for secondary text (Theme.kt maps the tokens onto them).
+  `TextTertiary` stays a token because it has no M3 role. `ui/theme`, `ui/components` and `map/`
+  may use the tokens directly.
+- Tab roots (Record, Activities, Progress, Settings) start with `ScreenTitle`; pushed screens use
+  `AppTopBar` with a back arrow.
 
 ## 2. The number is the loudest thing on screen
 
@@ -20,6 +27,12 @@ The tokens live in `ui/theme/` and the shared pieces in `ui/components/`.
 - Labels sit **above** the value in `AppText.eyebrow`, uppercase. Units trail the value in
   `bodyS` / `onSurfaceVariant`. Use `StatTile` / `StatRow` rather than rebuilding this.
 - All numbers and dates go through `core/util/Format.kt`. Never format a pace or a distance inline.
+- Distance decimals: a single run shows 2 decimals ("5.02 km"); a period total (a week, a month,
+  "This week") shows 1 decimal ("23.4 km"); the all-time total shows whole kilometres.
+- A run listed anywhere uses the Activities row model (`RunCardUi` from `Run.toCard`): moving time as
+  `formatDuration`, relative day ("Today", "Mon", "12 Nov").
+- Personal bests are an outlined `PbBadge` (Run detail header and efforts); the PB screen shows the
+  record value in `Accent`.
 
 ## 3. Accent means action or achievement
 

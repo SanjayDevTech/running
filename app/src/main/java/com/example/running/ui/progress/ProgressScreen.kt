@@ -1,7 +1,6 @@
 package com.example.running.ui.progress
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,32 +12,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.running.R
-import com.example.running.core.model.Run
 import com.example.running.core.util.formatDistanceKm
 import com.example.running.core.util.formatDurationShort
 import com.example.running.core.util.formatElevation
-import com.example.running.core.util.formatRunDate
 import com.example.running.di.appViewModel
+import com.example.running.ui.activities.RunRow
 import com.example.running.ui.components.ActivityFilterChips
-import com.example.running.ui.components.ActivityTypeIcon
-import com.example.running.ui.components.AppTopBar
+import com.example.running.ui.components.AppCard
 import com.example.running.ui.components.ChoiceChips
 import com.example.running.ui.components.EmptyState
+import com.example.running.ui.components.ScreenTitle
 import com.example.running.ui.components.SectionHeader
 import com.example.running.ui.components.StatItem
 import com.example.running.ui.components.StatRow
@@ -47,12 +45,8 @@ import com.example.running.ui.components.charts.AppBarChart
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
-import com.example.running.ui.theme.Radius
-import com.example.running.ui.theme.Raised1
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
-import com.example.running.ui.theme.TextPrimary
-import com.example.running.ui.theme.TextSecondary
 import com.example.running.ui.theme.TextTertiary
 
 /** CONTRACT(E). Public signature frozen (architecture.md §3.8). */
@@ -62,7 +56,7 @@ fun ProgressScreen(onOpenPersonalBests: () -> Unit, onOpenRun: (runId: String) -
     val state by vm.state.collectAsState()
     val s = state
     Column(Modifier.fillMaxSize().background(Black)) {
-        AppTopBar(title = stringResource(R.string.progress_title))
+        ScreenTitle(stringResource(R.string.progress_title))
         if (s == null) return@Column
         if (s.isEmpty) {
             ActivityFilterChips(
@@ -130,25 +124,28 @@ fun ProgressScreen(onOpenPersonalBests: () -> Unit, onOpenRun: (runId: String) -
                 StatRow(
                     listOf(
                         StatItem(stringResource(R.string.progress_metric_runs), s.allTime.count.toString()),
-                        StatItem(stringResource(R.string.progress_metric_distance), formatDistanceKm(s.allTime.distanceM, 0), stringResource(R.string.progress_unit_km)),
-                        StatItem(stringResource(R.string.progress_metric_time), formatDurationShort(s.allTime.movingMillis)),
+                        StatItem(stringResource(R.string.stat_distance), formatDistanceKm(s.allTime.distanceM, 0), stringResource(R.string.unit_km)),
+                        StatItem(stringResource(R.string.stat_time), formatDurationShort(s.allTime.movingMillis)),
                     ),
                     size = StatSize.M,
                 )
             }
             item { PersonalBestsLink(onOpenPersonalBests) }
             item { SectionHeader(stringResource(R.string.progress_recent)) }
-            items(s.recent, key = { it.id }) { run -> RecentRunRow(run, onClick = { onOpenRun(run.id) }) }
+            items(s.recent, key = { it.id }) { run ->
+                val card = remember(run) { vm.card(run) }
+                RunRow(card, onClick = { onOpenRun(run.id) })
+            }
         }
     }
 }
 
 @Composable
 private fun metricLabel(m: ProgressMetric): String = when (m) {
-    ProgressMetric.DISTANCE -> stringResource(R.string.progress_metric_distance)
-    ProgressMetric.TIME -> stringResource(R.string.progress_metric_time)
+    ProgressMetric.DISTANCE -> stringResource(R.string.stat_distance)
+    ProgressMetric.TIME -> stringResource(R.string.stat_time)
     ProgressMetric.RUNS -> stringResource(R.string.progress_metric_runs)
-    ProgressMetric.ELEVATION -> stringResource(R.string.progress_metric_elevation)
+    ProgressMetric.ELEVATION -> stringResource(R.string.stat_elevation)
 }
 
 @Composable
@@ -160,13 +157,13 @@ private fun SelectedPeriod(s: ProgressUiState, zone: java.time.ZoneId) {
         is Caption.Month -> c.label
     }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        Text(caption, style = AppText.titleM, color = TextPrimary)
+        Text(caption, style = AppText.titleM, color = MaterialTheme.colorScheme.onSurface)
         StatRow(
             listOf(
-                StatItem(stringResource(R.string.progress_metric_distance), formatDistanceKm(s.selected.distanceM), stringResource(R.string.progress_unit_km)),
-                StatItem(stringResource(R.string.progress_metric_time), formatDurationShort(s.selected.movingMillis)),
+                StatItem(stringResource(R.string.stat_distance), formatDistanceKm(s.selected.distanceM, 1), stringResource(R.string.unit_km)),
+                StatItem(stringResource(R.string.stat_time), formatDurationShort(s.selected.movingMillis)),
                 StatItem(stringResource(R.string.progress_metric_runs), s.selected.count.toString()),
-                StatItem(stringResource(R.string.progress_metric_elevation), formatElevation(s.selected.elevationGainM)),
+                StatItem(stringResource(R.string.stat_elevation), formatElevation(s.selected.elevationGainM)),
             ),
             size = StatSize.M,
         )
@@ -174,52 +171,17 @@ private fun SelectedPeriod(s: ProgressUiState, zone: java.time.ZoneId) {
 }
 
 @Composable
-private fun PersonalBestsLink(onClick: () -> Unit) {
+private fun PersonalBestsLink(onClick: () -> Unit) = AppCard(onClick = onClick) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(Raised1)
-            .clickable(onClick = onClick)
-            .heightIn(min = Sizes.touchTarget)
-            .padding(Spacing.l),
+        Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
         Icon(Icons.Rounded.EmojiEvents, contentDescription = null, tint = Accent, modifier = Modifier.size(28.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.progress_pb_link), style = AppText.titleM, color = TextPrimary)
-            Text(stringResource(R.string.progress_pb_link_subtitle), style = AppText.bodyS, color = TextSecondary)
+            Text(stringResource(R.string.progress_pb_link), style = AppText.titleM, color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.progress_pb_link_subtitle), style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = TextTertiary)
-    }
-}
-
-@Composable
-private fun RecentRunRow(run: Run, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(Raised1)
-            .clickable(onClick = onClick)
-            .heightIn(min = Sizes.touchTarget)
-            .padding(Spacing.l),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
-    ) {
-        ActivityTypeIcon(run.type, tint = TextSecondary, modifier = Modifier.size(24.dp))
-        Column(Modifier.weight(1f)) {
-            Text(run.name, style = AppText.body, color = TextPrimary)
-            Text(formatRunDate(run.startedAtMillis, run.zoneId), style = AppText.bodyS, color = TextSecondary)
-        }
-        Text(
-            stringResource(
-                R.string.progress_run_detail,
-                formatDistanceKm(run.stats.distanceM) + " " + stringResource(R.string.progress_unit_km),
-                formatDurationShort(run.stats.movingMillis),
-            ),
-            style = AppText.bodyS, color = TextSecondary,
-        )
     }
 }

@@ -8,13 +8,14 @@ import com.example.running.core.util.AppDispatchers
 import com.example.running.core.util.Clock
 import com.example.running.data.repo.RunRepository
 import com.example.running.data.settings.SettingsRepository
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 
 /**
  * CONTRACT(F). The five public methods of §3.5 are frozen; the constructor is F's choice.
@@ -164,7 +165,7 @@ data class BackupFile(val name: String, val uri: Uri, val sizeBytes: Long, val m
 
 /** `running-backup-yyyyMMdd-HHmmss.json` in the given zone. */
 internal fun backupFileName(millis: Long, zone: java.time.ZoneId): String =
-    "running-backup-" + DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(Instant.ofEpochMilli(millis).atZone(zone)) + ".json"
+    "running-backup-" + DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT).format(Instant.ofEpochMilli(millis).atZone(zone)) + ".json"
 
 /** Everything beyond the newest [keep] files (by modified time, then name). */
 internal fun filesToPrune(files: List<BackupFile>, keep: Int): List<BackupFile> =

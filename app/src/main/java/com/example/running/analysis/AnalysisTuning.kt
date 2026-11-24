@@ -1,5 +1,7 @@
 package com.example.running.analysis
 
+import com.example.running.core.model.GpsQuality
+
 /**
  * Every threshold the analysis uses, in one place. Pure Kotlin.
  *
@@ -23,7 +25,7 @@ internal object AnalysisTuning {
 
     // ---- Weak GPS / step fill ----
     /** Worse than this the stretch's distance comes from steps (when steps exist); drawn dashed. */
-    const val WEAK_ACCURACY_M = 20.0
+    const val WEAK_ACCURACY_M = GpsQuality.FAIR_MAX_ACCURACY_M.toDouble()
     /** Gaps between accepted fixes longer than this are filled from steps. */
     const val GAP_MILLIS = 4_000L
     /** Step-filled points are inserted every this many ms inside a gap. */

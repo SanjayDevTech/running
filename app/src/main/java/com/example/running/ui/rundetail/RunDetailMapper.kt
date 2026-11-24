@@ -10,6 +10,7 @@ import com.example.running.core.model.Segment
 import com.example.running.core.model.SegmentKind
 import com.example.running.core.model.SeriesPoint
 import com.example.running.core.model.Split
+import com.example.running.core.util.MAX_CHART_PACE_SEC_PER_KM
 import com.example.running.core.util.METERS_PER_KM
 import com.example.running.core.util.formatCadence
 import com.example.running.core.util.formatCalories
@@ -186,8 +187,6 @@ internal fun paceChartPoints(series: List<SeriesPoint>, maxPoints: Int = 300): L
 
 internal fun elevationChartPoints(series: List<SeriesPoint>, maxPoints: Int = 300): List<ChartPoint> =
     downsample(series.map { ChartPoint(it.distanceKm, it.value) }, maxPoints)
-
-internal const val MAX_CHART_PACE_SEC_PER_KM = 1_800.0
 
 internal fun buildRunDetailContent(
     run: Run,

@@ -1,20 +1,21 @@
 package com.example.running.ui.rundetail
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,37 +45,37 @@ import com.example.running.R
 import com.example.running.core.model.ActivityType
 import com.example.running.core.model.RouteMapMode
 import com.example.running.core.model.SegmentKind
-import com.example.running.core.util.formatDuration
+import com.example.running.core.util.METERS_PER_KM
 import com.example.running.core.util.formatDistanceKm
+import com.example.running.core.util.formatDuration
 import com.example.running.core.util.formatElevation
 import com.example.running.core.util.formatPace
 import com.example.running.di.appViewModel
 import com.example.running.map.RouteMap
 import com.example.running.ui.components.ActivityTypeIcon
+import com.example.running.ui.components.AppCard
+import com.example.running.ui.components.AppDivider
 import com.example.running.ui.components.AppTopBar
 import com.example.running.ui.components.CircleIconButton
 import com.example.running.ui.components.ConfirmDialog
 import com.example.running.ui.components.EmptyState
+import com.example.running.ui.components.PbBadge
 import com.example.running.ui.components.SectionHeader
 import com.example.running.ui.components.StatItem
 import com.example.running.ui.components.StatRow
 import com.example.running.ui.components.StatSize
 import com.example.running.ui.components.TextInputDialog
 import com.example.running.ui.components.charts.AppLineChart
-import com.example.running.ui.components.displayName
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Danger
-import com.example.running.ui.theme.Hairline
-import com.example.running.ui.theme.Outline
 import com.example.running.ui.theme.Radius
-import com.example.running.ui.theme.Raised1
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Raised4
+import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
-import com.example.running.ui.theme.Stop
-import com.example.running.ui.theme.Walk
+import com.example.running.ui.theme.color
 
 /** CONTRACT(D). Public signature frozen (architecture.md §3.8). */
 @Composable
@@ -163,7 +164,7 @@ private fun DetailContent(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.detail_menu_delete), color = Danger) },
+                                text = { Text(stringResource(R.string.common_delete), color = Danger) },
                                 onClick = { menuOpen = false; confirmDelete = true },
                             )
                         }
@@ -190,7 +191,7 @@ private fun DetailContent(
                         animateDrawIn = true,
                         highlightDistanceM = highlight?.let { it.startDistanceM..it.endDistanceM },
                         onClick = { mapExpanded = true },
-                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        modifier = Modifier.fillMaxWidth().height(Sizes.mapHeight),
                     )
                 }
 
@@ -198,23 +199,23 @@ private fun DetailContent(
                     val h = content.headline
                     StatRow(
                         listOf(
-                            StatItem(stringResource(R.string.detail_stat_distance), h.distanceKm, stringResource(R.string.detail_unit_km)),
+                            StatItem(stringResource(R.string.stat_distance), h.distanceKm, stringResource(R.string.unit_km)),
                             StatItem(stringResource(R.string.detail_stat_moving_time), h.movingTime),
                         ),
                         size = StatSize.XL,
                     )
                     StatRow(
                         listOf(
-                            StatItem(stringResource(R.string.detail_stat_pace), h.pace, stringResource(R.string.detail_unit_pace)),
+                            StatItem(stringResource(R.string.detail_stat_pace), h.pace, stringResource(R.string.unit_pace)),
                             StatItem(stringResource(R.string.detail_stat_elapsed), h.elapsed),
-                            StatItem(stringResource(R.string.detail_stat_elevation), h.elevation),
+                            StatItem(stringResource(R.string.stat_elevation), h.elevation),
                         ),
                         size = StatSize.L,
                     )
                     StatRow(
                         listOf(
-                            StatItem(stringResource(R.string.detail_stat_calories), h.calories, stringResource(R.string.detail_unit_kcal)),
-                            StatItem(stringResource(R.string.detail_stat_cadence), h.cadence, stringResource(R.string.detail_unit_spm)),
+                            StatItem(stringResource(R.string.stat_calories), h.calories, stringResource(R.string.unit_kcal)),
+                            StatItem(stringResource(R.string.stat_cadence), h.cadence, stringResource(R.string.unit_spm)),
                         ),
                         size = StatSize.L,
                     )
@@ -224,7 +225,7 @@ private fun DetailContent(
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
                             verticalArrangement = Arrangement.spacedBy(Spacing.s),
-                        ) { pbs.forEach { PbBadge("${stringResource(R.string.history_pb_badge)} ${it.label}") } }
+                        ) { pbs.forEach { PbBadge(stringResource(R.string.detail_pb_badge, it.label)) } }
                     }
                 }
 
@@ -234,7 +235,7 @@ private fun DetailContent(
                         AppLineChart(
                             points = content.geometry.pace,
                             yFormatter = { formatPace(it) },
-                            xFormatter = { formatDistanceKm(it * 1000.0, 1) },
+                            xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
                             invertY = true,
                             filled = false,
                         )
@@ -246,7 +247,7 @@ private fun DetailContent(
                         AppLineChart(
                             points = content.geometry.elevation,
                             yFormatter = { formatElevation(it) },
-                            xFormatter = { formatDistanceKm(it * 1000.0, 1) },
+                            xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
                         )
                     }
                 }
@@ -294,26 +295,12 @@ private fun DetailContent(
         ConfirmDialog(
             title = stringResource(R.string.detail_delete_title),
             text = stringResource(R.string.detail_delete_body),
-            confirmLabel = stringResource(R.string.detail_delete_confirm),
+            confirmLabel = stringResource(R.string.common_delete),
             onConfirm = { confirmDelete = false; onDelete() },
             onDismiss = { confirmDelete = false },
             destructive = true,
         )
     }
-}
-
-/** Accent text on an outlined pill: achievement, never an accent fill. */
-@Composable
-private fun PbBadge(text: String) {
-    Text(
-        text,
-        style = AppText.label,
-        color = Accent,
-        modifier = Modifier
-            .clip(RoundedCornerShape(Radius.pill))
-            .border(BorderStroke(1.dp, Outline), RoundedCornerShape(Radius.pill))
-            .padding(horizontal = Spacing.m, vertical = Spacing.xs),
-    )
 }
 
 @Composable
@@ -333,7 +320,7 @@ private fun SplitsTable(rows: List<SplitRowUi>, selectedIndex: Int?, onSelect: (
                     .clip(RoundedCornerShape(Radius.sm))
                     .background(if (selectedIndex == r.index) Raised4 else Black)
                     .clickable { onSelect(r.index) }
-                    .heightIn(min = 44.dp)
+                    .heightIn(min = Sizes.touchTarget)
                     .padding(vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -350,13 +337,10 @@ private fun SplitsTable(rows: List<SplitRowUi>, selectedIndex: Int?, onSelect: (
                 }
                 Text(r.elevation, style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(0.18f))
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
+            AppDivider()
         }
     }
 }
-
-@Composable
-private fun Spacer(modifier: Modifier) = Box(modifier)
 
 @Composable
 private fun SegmentsSection(segments: SegmentsUi) {
@@ -368,25 +352,14 @@ private fun SegmentsSection(segments: SegmentsUi) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = Spacing.s),
         )
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.md)).background(Raised1).padding(Spacing.m),
-            verticalArrangement = Arrangement.spacedBy(Spacing.s),
-        ) {
+        AppCard(contentPadding = PaddingValues(Spacing.m), verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
             segments.rows.forEach { r ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
                     Box(
                         Modifier
-                            .height(20.dp)
-                            .padding(end = 0.dp)
+                            .size(width = 4.dp, height = 20.dp)
                             .clip(RoundedCornerShape(Radius.sm))
-                            .background(
-                                when (r.kind) {
-                                    SegmentKind.RUN -> Accent
-                                    SegmentKind.WALK -> Walk
-                                    SegmentKind.STOP -> Stop
-                                },
-                            )
-                            .padding(horizontal = 2.dp),
+                            .background(r.kind.color()),
                     )
                     Text(
                         stringResource(
@@ -414,14 +387,14 @@ private fun EffortsSection(efforts: List<EffortUi>) {
         SectionHeader(stringResource(R.string.detail_section_best_efforts))
         efforts.forEach { e ->
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.m),
             ) {
                 Text(e.label, style = AppText.body, modifier = Modifier.weight(1f))
                 Text(e.time, style = AppText.numberM)
                 if (e.isPersonalBest) {
-                    Text(stringResource(R.string.history_pb_badge), style = AppText.label, color = Accent)
+                    PbBadge(stringResource(R.string.history_pb_badge))
                 } else {
                     Text(
                         stringResource(R.string.detail_effort_rank, e.rank),
@@ -430,7 +403,7 @@ private fun EffortsSection(efforts: List<EffortUi>) {
                     )
                 }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Hairline))
+            AppDivider()
         }
     }
 }

@@ -18,11 +18,14 @@ import com.example.running.ui.components.ChoiceChips
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Spacing
 
-internal fun Sex.label(): String = when (this) {
-    Sex.MALE -> "Male"
-    Sex.FEMALE -> "Female"
-    Sex.UNSPECIFIED -> "Prefer not to say"
-}
+@Composable
+internal fun Sex.label(): String = stringResource(
+    when (this) {
+        Sex.MALE -> R.string.profile_sex_male
+        Sex.FEMALE -> R.string.profile_sex_female
+        Sex.UNSPECIFIED -> R.string.profile_sex_unspecified
+    },
+)
 
 /** Weight / age / sex / optional height. Shared by onboarding and the profile editor. */
 @Composable
@@ -48,7 +51,8 @@ internal fun ProfileFields(
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
             Text(stringResource(R.string.onboarding_sex), style = AppText.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            ChoiceChips(Sex.entries, form.sex, { it.label() }, onSex)
+            val sexLabels = Sex.entries.associateWith { it.label() }
+            ChoiceChips(Sex.entries, form.sex, { sexLabels.getValue(it) }, onSex)
         }
         NumberField(
             value = form.height, onChange = onHeight, label = stringResource(R.string.onboarding_height),

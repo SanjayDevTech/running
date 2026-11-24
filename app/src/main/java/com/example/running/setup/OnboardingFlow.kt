@@ -49,11 +49,20 @@ internal class DevModeTapCounter(private val windowMillis: Long = 2_000L) {
 internal object BackupIntervals {
     val OPTIONS = listOf(0, 24, 72, 168)
 
-    fun label(hours: Int): String = when (hours) {
-        0 -> "Off"
-        24 -> "Daily"
-        72 -> "Every 3 days"
-        168 -> "Weekly"
-        else -> "Every ${hours}h"
+    /** How to name an interval; the UI maps this to strings (ui/settings/BackupScreen). */
+    sealed interface Label {
+        data object Off : Label
+        data object Daily : Label
+        data object Weekly : Label
+        data class EveryDays(val days: Int) : Label
+        data class EveryHours(val hours: Int) : Label
+    }
+
+    fun label(hours: Int): Label = when {
+        hours <= 0 -> Label.Off
+        hours == 24 -> Label.Daily
+        hours == 168 -> Label.Weekly
+        hours % 24 == 0 -> Label.EveryDays(hours / 24)
+        else -> Label.EveryHours(hours)
     }
 }

@@ -2,6 +2,7 @@ package com.example.running.setup
 
 import com.example.running.core.model.RunnerProfile
 import com.example.running.core.model.Sex
+import com.example.running.core.util.formatWeightKg
 
 /** Text-field state for the profile (onboarding and Settings share it). Parsing and ranges live here. */
 internal data class ProfileForm(
@@ -42,13 +43,10 @@ internal data class ProfileForm(
         val HEIGHT_RANGE = 100..250
 
         fun from(profile: RunnerProfile) = ProfileForm(
-            weight = formatWeight(profile.weightKg),
+            weight = formatWeightKg(profile.weightKg),
             age = profile.ageYears.toString(),
             sex = profile.sex,
             height = profile.heightCm?.toString().orEmpty(),
         )
-
-        private fun formatWeight(kg: Double): String =
-            if (kg == Math.floor(kg)) kg.toInt().toString() else "%.1f".format(java.util.Locale.US, kg)
     }
 }

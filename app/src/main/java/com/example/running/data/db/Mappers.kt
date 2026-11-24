@@ -30,9 +30,7 @@ fun RunEntity.toDomain(): Run = Run(
         elevationGainM = elevationGainM, elevationLossM = elevationLossM, elevationSource = elevationSource,
         caloriesKcal = caloriesKcal, steps = steps, avgCadenceSpm = avgCadenceSpm,
         walkFraction = walkFraction, stepFilledM = stepFilledM,
-        bounds = if (minLat != null && minLon != null && maxLat != null && maxLon != null) {
-            GeoBounds(minLat, minLon, maxLat, maxLon)
-        } else null,
+        bounds = GeoBounds.ofNullable(minLat, minLon, maxLat, maxLon),
         weightKgUsed = weightKgUsed, strideMUsed = strideMUsed,
     ),
     analysisVersion = analysisVersion, createdAtMillis = createdAtMillis, updatedAtMillis = updatedAtMillis,

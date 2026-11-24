@@ -8,18 +8,16 @@ import com.example.running.core.util.formatPaceWithUnit
 import com.example.running.core.util.formatRunDate
 import com.example.running.core.util.paceSecPerKm
 
-internal enum class PbId(val distance: BestEffortDistance?) {
-    K1(BestEffortDistance.K1),
-    K5(BestEffortDistance.K5),
-    K10(BestEffortDistance.K10),
-    HALF(BestEffortDistance.HALF),
-    LONGEST_DISTANCE(null),
-    LONGEST_DURATION(null),
+/** What a PB row records: a best effort over one of the [BestEffortDistance]s, or a "longest" record. */
+internal sealed interface PbKind {
+    data class Effort(val distance: BestEffortDistance) : PbKind
+    data object LongestDistance : PbKind
+    data object LongestDuration : PbKind
 }
 
 /** One record line. [runId] null means the record is not set yet. */
 internal data class PbRow(
-    val id: PbId,
+    val kind: PbKind,
     val value: String?,
     /** Average pace for efforts; null for the "longest" records. */
     val pace: String?,
@@ -28,14 +26,14 @@ internal data class PbRow(
     val runId: String?,
 )
 
-/** Pure: fixed order 1K, 5K, 10K, half, longest distance, longest time. */
+/** Pure: every [BestEffortDistance] in declaration order, then longest distance, longest time. */
 internal fun buildPbRows(pb: PersonalBests, zoneId: String): List<PbRow> {
     val rows = BestEffortDistance.entries.map { d ->
         val rec = pb.efforts[d]
         if (rec == null) {
-            PbRow(PbId.valueOf(d.name), null, null, null, null, null)
+            PbRow(PbKind.Effort(d), null, null, null, null, null)
         } else PbRow(
-            id = PbId.valueOf(d.name),
+            kind = PbKind.Effort(d),
             value = formatDuration(rec.effort.durationMillis),
             pace = formatPaceWithUnit(paceSecPerKm(d.meters, rec.effort.durationMillis)),
             runName = rec.runName,
@@ -44,10 +42,10 @@ internal fun buildPbRows(pb: PersonalBests, zoneId: String): List<PbRow> {
         )
     }
     val longestDistance = pb.longestDistance?.takeIf { it.distanceM > 0.0 }?.let {
-        PbRow(PbId.LONGEST_DISTANCE, formatDistance(it.distanceM), null, it.runName, formatRunDate(it.runStartedAtMillis, zoneId), it.runId)
-    } ?: PbRow(PbId.LONGEST_DISTANCE, null, null, null, null, null)
+        PbRow(PbKind.LongestDistance, formatDistance(it.distanceM), null, it.runName, formatRunDate(it.runStartedAtMillis, zoneId), it.runId)
+    } ?: PbRow(PbKind.LongestDistance, null, null, null, null, null)
     val longestDuration = pb.longestDuration?.takeIf { it.movingMillis > 0L }?.let {
-        PbRow(PbId.LONGEST_DURATION, formatDuration(it.movingMillis), null, it.runName, formatRunDate(it.runStartedAtMillis, zoneId), it.runId)
-    } ?: PbRow(PbId.LONGEST_DURATION, null, null, null, null, null)
+        PbRow(PbKind.LongestDuration, formatDuration(it.movingMillis), null, it.runName, formatRunDate(it.runStartedAtMillis, zoneId), it.runId)
+    } ?: PbRow(PbKind.LongestDuration, null, null, null, null, null)
     return rows + longestDistance + longestDuration
 }

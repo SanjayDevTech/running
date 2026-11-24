@@ -33,11 +33,4 @@ class EngineComparisonTest {
         // Moving stretches 0..3 and 7..9: 3 + 2 intervals of ~3 m.
         assertThat(compareEngines(pts).single().distanceM).isWithin(0.5).of(15.0)
     }
-
-    @Test fun percentileIsNearestRank() {
-        val v = (1..20).map { it.toDouble() }
-        assertThat(percentile(v, 0.5)).isEqualTo(10.0)
-        assertThat(percentile(v, 0.95)).isEqualTo(19.0)
-        assertThat(percentile(emptyList(), 0.5)).isNull()
-    }
 }

@@ -17,11 +17,11 @@ fun formatDistanceKm(meters: Double, decimals: Int = 2): String =
 
 fun formatDistance(meters: Double, decimals: Int = 2): String = "${formatDistanceKm(meters, decimals)} km"
 
-/** "5:32"; "--:--" for null, non-finite or >= 60:00. */
+/** "5:32"; "--:--" for null, non-finite or slower than [MAX_DISPLAY_PACE_SEC_PER_KM]. */
 fun formatPace(secPerKm: Double?): String {
     if (secPerKm == null || !secPerKm.isFinite() || secPerKm <= 0.0) return "--:--"
     val total = secPerKm.roundToLong()
-    if (total >= 3600) return "--:--"
+    if (total > MAX_DISPLAY_PACE_SEC_PER_KM) return "--:--"
     return String.format(EN, "%d:%02d", total / 60, total % 60)
 }
 
@@ -74,6 +74,16 @@ fun formatMeters(meters: Double?): String = when {
 /** Seconds with two decimals, "1.02 s"; "–" when unknown. */
 fun formatSecondsPrecise(millis: Double?): String =
     if (millis == null || !millis.isFinite()) EM_DASH else String.format(EN, "%.2f s", millis / 1000.0)
+
+/** Body weight: whole kilograms without a decimal ("72"), otherwise one decimal ("72.5"). */
+fun formatWeightKg(kg: Double): String =
+    if (kg == Math.floor(kg)) kg.toLong().toString() else String.format(EN, "%.1f", kg)
+
+/** File size: "1.2 MB" from 1 MB, else whole kilobytes rounded up ("12 KB"). */
+fun formatFileSize(bytes: Long): String = when {
+    bytes >= 1_000_000 -> String.format(EN, "%.1f MB", bytes / 1_000_000.0)
+    else -> "${(bytes + 999) / 1000} KB"
+}
 
 /** A 0..1 share as "42 %". */
 fun formatPercent(fraction: Double): String = "${(fraction * 100).roundToInt()} %"

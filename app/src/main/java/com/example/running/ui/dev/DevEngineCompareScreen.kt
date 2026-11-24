@@ -11,23 +11,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -39,23 +36,23 @@ import com.example.running.core.model.RouteColoring
 import com.example.running.core.model.RouteMapMode
 import com.example.running.core.util.formatDistance
 import com.example.running.core.util.formatDurationShort
+import com.example.running.core.util.formatMeters
+import com.example.running.core.util.formatPercent
+import com.example.running.core.util.formatSecondsPrecise
 import com.example.running.data.repo.RunRepository
 import com.example.running.di.appViewModel
 import com.example.running.map.RouteMap
 import com.example.running.ui.components.AppTopBar
 import com.example.running.ui.components.EmptyState
 import com.example.running.ui.components.SectionHeader
+import com.example.running.ui.components.StatusDot
 import com.example.running.ui.components.displayName
-import com.example.running.core.util.formatMeters
-import com.example.running.core.util.formatPercent
-import com.example.running.core.util.formatSecondsPrecise
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Hairline
+import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
-import com.example.running.ui.theme.TextPrimary
-import com.example.running.ui.theme.TextSecondary
 import com.example.running.ui.theme.Walk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -99,7 +96,7 @@ fun DevEngineCompareScreen(runId: String, onBack: () -> Unit) {
         AppTopBar(title = stringResource(R.string.dev_compare_title), onBack = onBack)
         when {
             state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = TextPrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
             }
             state.stats.isEmpty() -> EmptyState(
                 title = stringResource(R.string.dev_compare_empty_title),
@@ -113,7 +110,7 @@ fun DevEngineCompareScreen(runId: String, onBack: () -> Unit) {
                     route = null,
                     comparison = state.routes.values.toList(),
                     mode = RouteMapMode.INTERACTIVE,
-                    modifier = Modifier.fillMaxWidth().height(320.dp),
+                    modifier = Modifier.fillMaxWidth().height(Sizes.mapHeight),
                 )
                 Row(
                     Modifier.padding(horizontal = Spacing.gutter),
@@ -131,9 +128,9 @@ fun DevEngineCompareScreen(runId: String, onBack: () -> Unit) {
 @Composable
 private fun Legend(engine: LocationEngine) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(engineColor(engine)))
+        StatusDot(engineColor(engine))
         Spacer(Modifier.width(Spacing.s))
-        Text(engine.displayName(), style = AppText.label, color = TextPrimary)
+        Text(engine.displayName(), style = AppText.label, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -152,15 +149,15 @@ private fun CompareTable(stats: List<EngineStats>) {
         Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s)) {
             Spacer(Modifier.weight(1.4f))
             stats.forEach {
-                Text(it.engine.displayName().uppercase(), style = AppText.eyebrow, color = TextSecondary, modifier = Modifier.weight(1f))
+                Text(it.engine.displayName().uppercase(), style = AppText.eyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
             }
         }
         rows.forEach { (label, value) ->
             HorizontalDivider(color = Hairline)
             Row(Modifier.fillMaxWidth().padding(vertical = Spacing.m), verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = AppText.bodyS, color = TextSecondary, modifier = Modifier.weight(1.4f))
+                Text(label, style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.4f))
                 stats.forEach { s ->
-                    Text(value(s), style = AppText.numberM, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(value(s), style = AppText.numberM, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 }
             }
         }

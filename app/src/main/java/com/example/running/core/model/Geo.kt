@@ -21,6 +21,14 @@ data class GeoBounds(val minLat: Double, val minLon: Double, val maxLat: Double,
     }
 
     companion object {
+        /** Bounds from four nullable columns (DB row, backup payload); null unless all are set. */
+        fun ofNullable(minLat: Double?, minLon: Double?, maxLat: Double?, maxLon: Double?): GeoBounds? =
+            if (minLat != null && minLon != null && maxLat != null && maxLon != null) {
+                GeoBounds(minLat, minLon, maxLat, maxLon)
+            } else {
+                null
+            }
+
         fun of(points: Iterable<GeoPoint>): GeoBounds? {
             var minLat = Double.POSITIVE_INFINITY
             var minLon = Double.POSITIVE_INFINITY

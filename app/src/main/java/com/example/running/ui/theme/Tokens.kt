@@ -29,6 +29,10 @@ object Sizes {
     val recordButton = 88.dp
     val controlButton = 64.dp
     val chartHeight = 180.dp
+    /** Route map on Run detail (and the dev engine comparison). */
+    val mapHeight = 260.dp
+    /** Route thumbnail on an Activities card. */
+    val thumbnailHeight = 120.dp
 }
 
 object Elevation {

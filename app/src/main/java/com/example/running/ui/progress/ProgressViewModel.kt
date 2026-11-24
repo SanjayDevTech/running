@@ -3,9 +3,12 @@ package com.example.running.ui.progress
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.running.core.model.ActivityFilter
+import com.example.running.core.model.Run
 import com.example.running.core.util.AppDispatchers
 import com.example.running.core.util.Clock
 import com.example.running.data.repo.RunRepository
+import com.example.running.ui.activities.RunCardUi
+import com.example.running.ui.activities.toCard
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,6 +37,9 @@ internal class ProgressViewModel(
     private val selection = MutableStateFlow(Selection())
 
     val zone get() = clock.zoneId()
+
+    /** The same row model as an Activities card, so "Recent" reads like the Activities list. */
+    fun card(run: Run): RunCardUi = run.toCard(clock)
 
     /** null until the first emission from the database. */
     @OptIn(ExperimentalCoroutinesApi::class)

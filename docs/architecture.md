@@ -92,7 +92,7 @@ FOUNDATION as a stub, then owned by track X with a frozen public signature.
 │   ├── util/
 │   │   ├── Clock.kt                      F0   Clock, RealClock
 │   │   ├── AppDispatchers.kt             F0
-│   │   ├── GeoMath.kt                    F0   haversine, bearing, bounds, interpolate
+│   │   ├── GeoMath.kt                    F0   haversine, bearing, interpolate, metres per degree (bounds: core/model/Geo.kt)
 │   │   ├── Units.kt                      F0   pace/speed conversions, constants
 │   │   ├── Format.kt                     F0   all user-visible number/time formatting
 │   │   ├── DateTimeUtil.kt               F0   week/month boundaries, epoch-day helpers
@@ -745,7 +745,8 @@ No light scheme, no dynamic colour. Bar icons pinned light (`SystemBarStyle.dark
 
 Pure black where content sits directly on the canvas (screen backgrounds, Record screen, top bars,
 map letterboxing). Slightly raised near-black where a pure-black surface would make a shape vanish
-(cards, sheets, dialogs, bottom bar, chips, text fields, chart plot areas).
+(cards, sheets, dialogs, bottom bar, chips, text fields). Charts sit on black; their plot area is not
+boxed (docs/ui-house-rules.md §1).
 
 ```kotlin
 // Color.kt — tokens
@@ -823,7 +824,7 @@ data class StatItem(val label: String, val value: String, val unit: String? = nu
 @Composable fun EngineChip(engine: LocationEngine?, fallback: Boolean, modifier: Modifier = Modifier, quality: GpsQuality? = null) // "Google" / "Built-in" (+ "fallback"), dot coloured by quality
 
 @Composable fun ConfirmDialog(title: String, text: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit,
-    destructive: Boolean = false, dismissLabel: String = "Cancel")
+    destructive: Boolean = false, dismissLabel: String = stringResource(R.string.common_cancel))
 @Composable fun TextInputDialog(title: String, initial: String, confirmLabel: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit)
 @Composable fun AppTopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {})
 @Composable fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, actionLabel: String? = null, onAction: (() -> Unit)? = null)
@@ -831,6 +832,17 @@ data class StatItem(val label: String, val value: String, val unit: String? = nu
 fun ActivityType.displayName(): String   // "Run" / "Walk"
 fun LocationEngineMode.displayName(): String  // "Auto" / "Google" / "Built-in"
 fun LocationEngine.displayName(): String      // "Google" / "Built-in"
+// Added in the Run 3 fix pass (one implementation each; screens must not rebuild them):
+@Composable fun AppCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(Spacing.l), verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: @Composable ColumnScope.() -> Unit)                 // Raised1 list card
+@Composable fun AppDivider(modifier: Modifier = Modifier)         // Hairline
+@Composable fun ScreenTitle(title: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) // tab roots
+@Composable fun PbBadge(text: String, modifier: Modifier = Modifier) // outlined accent pill
+@Composable fun StatusDot(color: Color, modifier: Modifier = Modifier) // 8 dp
+// ui/theme/SemanticColors.kt
+fun GpsQuality?.color(): Color     // GOOD Success, FAIR/POOR Warning, NONE TextTertiary
+fun SegmentKind?.color(): Color    // RUN/null Accent, WALK Walk, STOP Stop
 ```
 
 Charts (`ui/components/charts/`, Vico, shared by D and E — D/E must not build their own Vico setup):
@@ -869,6 +881,9 @@ object DefaultAppDispatchers : AppDispatchers
 
 // GeoMath.kt
 const val EARTH_RADIUS_M = 6_371_008.8
+const val METERS_PER_DEGREE_LAT = EARTH_RADIUS_M * PI / 180     // same sphere as haversine
+fun cosLatFactor(lat: Double): Double                            // cos(lat), floored at 0.01
+fun metersPerDegreeLon(lat: Double): Double
 fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double
 fun haversineMeters(a: GeoPoint, b: GeoPoint): Double
 fun bearingDegrees(a: GeoPoint, b: GeoPoint): Double
@@ -876,6 +891,9 @@ fun interpolate(a: GeoPoint, b: GeoPoint, fraction: Double): GeoPoint
 fun pathLengthMeters(points: List<GeoPoint>): Double
 
 // Units.kt
+const val MAX_DISPLAY_PACE_SEC_PER_KM = 3_599.0    // slower shows "--:--"; live pace clamps here
+const val MAX_CHART_PACE_SEC_PER_KM = 1_800.0      // slower is left out of pace charts
+const val STANDING_SPEED_MPS = 0.3
 fun paceSecPerKm(speedMps: Double): Double?        // null if speed <= 0.3 m/s (standing)
 fun speedMps(paceSecPerKm: Double): Double
 fun paceSecPerKm(distanceM: Double, durationMillis: Long): Double?   // null if distance < 10 m
@@ -891,9 +909,20 @@ fun formatDurationShort(millis: Long): String                        // "2h 19m"
 fun formatElevation(meters: Double?): String                         // "106 m", "–"
 fun formatCalories(kcal: Double?): String                            // "412", "–"
 fun formatCadence(spm: Double?): String                              // "172"
+fun formatAccuracy(meters: Float?): String                           // "±5 m", "–"
+fun formatMeters(meters: Double?): String                            // "4.2 m", "312 m", "–"
+fun formatSecondsPrecise(millis: Double?): String                    // "1.02 s", "–"
+fun formatPercent(fraction: Double): String                          // "42 %"
+fun formatWeightKg(kg: Double): String                               // "72", "72.5"
+fun formatFileSize(bytes: Long): String                              // "12 KB", "1.3 MB"
 fun formatRunDateTime(millis: Long, zoneId: String): String          // "Tue, 24 Nov 2026 · 7:02 AM"
 fun formatRunDate(millis: Long, zoneId: String): String              // "24 Nov 2026"
 fun formatRelativeDay(millis: Long, zoneId: String, clock: Clock): String  // "Today", "Yesterday", "Mon", "12 Nov"
+fun formatWeekLabel(startMillis: Long, zone: ZoneId): String         // "24 Nov"
+fun formatMonthLabel(startMillis: Long, zone: ZoneId, withYear: Boolean = false): String  // "Nov", "Nov 2026"
+
+// Stats.kt
+fun percentile(sorted: List<Double>, p: Double): Double?            // linear interpolation, null if empty
 
 // DateTimeUtil.kt  (weeks start Monday, ISO)
 fun startOfDay(millis: Long, zone: ZoneId): Long
@@ -902,6 +931,9 @@ fun startOfMonth(millis: Long, zone: ZoneId): Long
 fun epochDay(millis: Long, zone: ZoneId): Long
 fun weekRange(millis: Long, zone: ZoneId): LongRange    // [start, nextStart)
 fun monthRange(millis: Long, zone: ZoneId): LongRange
+fun isoWeekIndex(epochDay: Long): Long                  // consecutive integer per ISO week
+fun dayOfWeekIndex(millis: Long, zone: ZoneId): Int     // 0 = Monday … 6 = Sunday
+// internal: LocalDate.startMillis(zone), localDate(millis, zone), LocalDate.isoWeekStart() (used by Aggregation)
 
 // Ids.kt
 fun newRunId(): String   // UUID.randomUUID().toString()
@@ -925,7 +957,7 @@ object Permissions {
     fun hasFineLocation(ctx: Context): Boolean
     fun hasBackgroundLocation(ctx: Context): Boolean             // "Allow all the time"
     fun canRequestBackgroundLocation(ctx: Context): Boolean      // fine granted && background not yet granted
-    fun hasNotifications(ctx: Context): Boolean
+    fun hasNotifications(ctx: Context): Boolean                  // always true below API 33
     fun hasActivityRecognition(ctx: Context): Boolean
     fun appSettingsIntent(ctx: Context): Intent
     fun locationSettingsIntent(): Intent
@@ -955,7 +987,8 @@ object NotificationChannels {
 
 FOUNDATION writes every interface/model below for real, and writes a **stub implementation** in the
 owning track's package that compiles and, where noted, behaves minimally so consumers can develop in
-parallel. "Stub" behaviour is replaced by the implementing track.
+parallel. "Stub" behaviour is replaced by the implementing track. Since Run 2 every stub is gone
+(§10.3); the stub paragraphs below are kept, marked historical, only to explain Run 1.
 
 ### 3.1 Recording — implemented by A
 
@@ -1006,8 +1039,8 @@ interface RecordingController {
     fun finishInterrupted(runId: String)
 }
 ```
-Stub (`recording/RecordingModule.kt` + `recording/StubRecordingController.kt`): state `Idle`, all
-calls no-op, `liveRoute` null.
+*Historical (Run 1 only, stub deleted in Run 2, §10.3):* stub `recording/StubRecordingController.kt`
+had state `Idle`, all calls no-op, `liveRoute` null.
 
 ```kotlin
 // recording/RecordingModule.kt  CONTRACT(A)
@@ -1029,7 +1062,9 @@ FGS and resumes recording automatically **if `Permissions.hasBackgroundLocation(
 service restart (`START_STICKY`) and from `checkForInterruptedRun()`. Without background location (or
 if the FGS start is refused, e.g. `ForegroundServiceStartNotAllowedException`), A does not retry from
 the background and instead surfaces `NeedsRecoveryDecision` (resume / finish) on the next app open.
-Automatic resumes are capped at 3 per run (§2.5). A resume the user confirms after a gap of 60 s or
+Automatic resumes are capped at 3 per run (§2.5) and only happen when the last persisted data is at
+most 10 min old (`ControllerConfig.autoResumeMaxGapMillis`); an older interruption (phone died or
+rebooted mid-run, app opened later) always gets the prompt. A resume the user confirms after a gap of 60 s or
 more stores the gap as a pause; finishing an interrupted run uses the last recorded data time as
 `endedAtMillis`, not the current time.
 
@@ -1114,7 +1149,7 @@ class AnalysisModule(clock: Clock) {
     val runSeriesBuilder: RunSeriesBuilder
 }
 ```
-Stub behaviour (must be usable): analyzer copies raw points to FILTERED with cumulative haversine
+*Historical (Run 1 only, `analysis/StubAnalysis.kt` deleted in Run 2, §10.3):* stub analyzer copies raw points to FILTERED with cumulative haversine
 distance, stats from distance/elapsed/pauses (moving = elapsed − paused), 1 km splits by linear
 interpolation, one RUN segment, no best efforts, `suggestedName` from the namer; namer uses hour
 buckets (5–11 Morning, 11–14 Lunch, 14–17 Afternoon, 17–21 Evening, else Night) + "Run"/"Walk";
@@ -1169,7 +1204,7 @@ class MapModule(core: CoreDeps) {
 // map/RouteThumbnail.kt  CONTRACT(C) — cheap, list-safe (no live MapView per row)
 @Composable fun RouteThumbnail(route: MapRoute, modifier: Modifier = Modifier, cacheKey: String? = null)
 ```
-Stub: `RouteMap` = `Raised1` box with the route drawn as a Canvas polyline (projected
+*Historical (Run 1 only, `map/StubRouteCanvas.kt` deleted in Run 2, §10.3):* `RouteMap` was a `Raised1` box with the route drawn as a Canvas polyline (projected
 equirectangular) and start/end dots; `RouteThumbnail` same; `MapModule.initialize()` no-op; offline
 manager returns `false`/`NONE`.
 
@@ -1212,7 +1247,7 @@ data class BackupFile(val name: String, val uri: Uri, val sizeBytes: Long, val m
 // backup/BackupScheduler.kt  CONTRACT(F)
 class BackupScheduler(/* F chooses */) { fun apply(intervalHours: Int); suspend fun applyFromSettings() }
 ```
-Stub: checker returns `UNKNOWN`/`null`; manager returns failures; scheduler no-op.
+*Historical (Run 1 only, replaced by F in Run 2):* checker returned `UNKNOWN`/`null`; manager failures; scheduler no-op.
 Consumers: F (onboarding, settings, worker), A (may read `accuracyChecker` to warn on the Record
 screen and to inform AUTO fallback), F0 (`MainActivity` calls `applyFromSettings()`).
 
@@ -1289,7 +1324,7 @@ periodic work `recurring-backup`, constraints battery-not-low + storage-not-low.
 // ui/settings/BackupScreen.kt            CONTRACT(F)
 @Composable fun BackupScreen(onBack: () -> Unit)
 ```
-Stub body: `EmptyState(title = "<Screen>", body = "Not built yet")`. Insets rule: the nav host's
+*Historical (Run 1 only):* stub bodies were `EmptyState(title = "<Screen>", body = "Not built yet")`. Insets rule: the nav host's
 `Scaffold` applies the bottom-bar padding; screens draw edge-to-edge and handle the status bar
 themselves (`WindowInsets.statusBars`).
 
@@ -1699,8 +1734,9 @@ through the BOM. compileSdk 37 minor 2 works.
    (also blocks device-to-device transfer, which `allowBackup=false` alone does not on API 31+).
 8. `AppBarChart`: when `selectedIndex` is set, other bars are drawn `Raised4` and the selected one in `color`.
    `AppLineChart` implements `invertY` by plotting −y (formatters receive the real value).
-9. Stub implementations live in their owners' packages: `analysis/StubAnalysis.kt`, `map/StubRouteCanvas.kt`,
-   `recording/StubRecordingController.kt`, `recording/RecordingService.kt`. Owners delete/replace them freely.
+9. (Historical) Run 1 stub implementations lived in their owners' packages: `analysis/StubAnalysis.kt`,
+   `map/StubRouteCanvas.kt`, `recording/StubRecordingController.kt`, `recording/RecordingService.kt`. All
+   were replaced in Run 2 (§10.3).
 10. `SyntheticRuns` API: `Spec(...)`, `fixes(spec, startMillis)`, `runGraph(id, startMillis, zoneId, spec, name?)`,
     `demoGraphs(nowMillis, zone, count = 40, weeks = 16)` (ids `demo-00`…).
 11. Robolectric runs at `sdk=35` (`app/src/test/resources/robolectric.properties`); it does not ship 37 yet.
