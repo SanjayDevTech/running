@@ -6,7 +6,14 @@ import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
 import com.example.running.core.model.TrackPoint
 
-/** Engine-neutral copy of an Android [Location]; absent optional fields become null. */
+/**
+ * Engine-neutral copy of an Android [Location]; absent optional fields become null.
+ *
+ * A mock fix (test provider, `adb emu geo fix`, mock-location apps) carries a speed the mock filled
+ * in, often a constant 0 m/s with a tight accuracy, not a Doppler measurement. Trusting it makes the
+ * analysis treat a moving track as standing still, so a mock fix's speed and speed accuracy are dropped
+ * and the analysis falls back to displacement.
+ */
 internal fun Location.toFix(engine: LocationEngine): LocationFix = LocationFix(
     timeMillis = time,
     elapsedRealtimeNanos = elapsedRealtimeNanos,
@@ -16,8 +23,8 @@ internal fun Location.toFix(engine: LocationEngine): LocationFix = LocationFix(
     mslAltitudeM = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && hasMslAltitude()) mslAltitudeMeters else null,
     horizontalAccuracyM = if (hasAccuracy()) accuracy else null,
     verticalAccuracyM = if (hasVerticalAccuracy()) verticalAccuracyMeters else null,
-    speedMps = if (hasSpeed()) speed else null,
-    speedAccuracyMps = if (hasSpeedAccuracy()) speedAccuracyMetersPerSecond else null,
+    speedMps = if (!isMock && hasSpeed()) speed else null,
+    speedAccuracyMps = if (!isMock && hasSpeedAccuracy()) speedAccuracyMetersPerSecond else null,
     bearingDeg = if (hasBearing()) bearing else null,
     engine = engine,
 )

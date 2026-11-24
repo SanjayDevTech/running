@@ -1794,8 +1794,8 @@ StaticFieldLeak in `BackupViewModel`).
 **Open after integration** (for the review/fix pass): no screen has been run on the emulator since the
 merge; MapLibre rendering and the offline download are unverified on real tiles; controller tests use a
 fake LiveMetrics, so a replay test of A against B's real LiveMetrics is still missing; `RunSaved` has no
-replay, so finishing from the notification while Record is off-screen does not open Run detail; a run
-whose analysis always throws loops back to the recovery prompt.
+replay, so finishing from the notification while Record is off-screen does not open Run detail (fixed in
+§10.5 for a live activity); a run whose analysis always throws loops back to the recovery prompt.
 
 ### 10.4 Run 3 fix pass: emulator smoke test (2026-11-24)
 
@@ -1809,3 +1809,23 @@ y range now fits the data on round label steps instead of starting at 0.
 Emulator note: `adb emu geo fix` reports a trusted Doppler speed of 0, which the analysis treats as
 standing still (distance stays 0). Replay with a shell test provider instead
 (`cmd location providers add-test-provider gps` + `set-test-provider-location`), which sends no speed.
+
+### 10.5 Run 3 fix pass, round 2: emulator smoke test (2026-11-24)
+
+On `Running_Test` (release APK, fresh install): onboarding, a ~0.95 km replayed run with a 25 s pause
+(movement while paused not counted), a force-stop mid-run (auto-resumed on app open), finish → Run
+detail (map, pace/elevation charts, splits), Activities, Progress; a second run finished from the
+notification with the app in the background opened Run detail. No crashes in logcat. Fixed:
+- Live pace/avg pace after a gap with no events (process restart, GPS outage without steps): moving
+  time accrued only `LIVE_MAX_ACCRUAL_MILLIS` while the gap's straight-line distance was counted, so
+  pace read ~1:11 /km after auto-resume. A gap covered at moving speed now counts as moving time
+  (as in the analyzer).
+- Chart labels: x labels sit on a 1-2-5 interval of whole grid steps no finer than the formatter
+  (`minXLabelStep`; was "0.0, 0.1, 0.1, 0.2"), and a flat elevation line gets whole-metre y labels
+  (`minYStep`; was "6 m, 5 m, 5 m").
+- Mock fixes (`Location.isMock`: test providers, mock-location apps) drop speed and speed accuracy, so
+  a mock's constant 0 m/s is never trusted as Doppler.
+- `AppNavHost` opens Run detail on `RunSaved` when another destination is showing (Record handles its
+  own case).
+Emulator replay: `adb emu geo fix <lon> <lat> <alt> <sats> <knots>` with the speed argument gives a
+realistic Doppler speed (without it the speed is 0 and the run records 0 km).

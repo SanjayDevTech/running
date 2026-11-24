@@ -8,6 +8,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination
@@ -20,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.running.core.model.RecordingEvent
 import com.example.running.core.model.RecordingState
 import com.example.running.di.LocalAppContainer
 import com.example.running.ui.activities.ActivitiesScreen
@@ -67,6 +69,15 @@ fun AppNavHost(
         (recordingState is RecordingState.Recording || recordingState is RecordingState.Saving)
     val recordingActive = recordingState is RecordingState.Recording || recordingState is RecordingState.Saving
     val showBottomBar = currentTab != null && !fullScreenRecording
+
+    // RecordScreen opens the saved run itself; a run finished from the notification while another
+    // destination is showing would otherwise only appear in Activities.
+    val tabNow by rememberUpdatedState(currentTab)
+    LaunchedEffect(container) {
+        container.recording.controller.events.collect { event ->
+            if (event is RecordingEvent.RunSaved && tabNow != Tab.Record) navController.navigate(RunDetailRoute(event.runId))
+        }
+    }
 
     LaunchedEffect(openRecordingRequest, onboardingComplete) {
         if (openRecordingRequest && onboardingComplete) {
