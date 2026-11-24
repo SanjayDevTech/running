@@ -1,0 +1,24 @@
+name: Build release APK
+description: >
+  Builds the signed release APK of the checked-out commit and leaves it at
+  app/build/outputs/apk/release/app-release.apk. Shared by the build and release workflows.
+
+runs:
+  using: composite
+  steps:
+    # Same JDK the build runs on (gradle/gradle-daemon-jvm.properties), so Gradle doesn't
+    # download another one.
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: 25
+
+    # Caches Gradle's dependencies and build cache between runs.
+    - uses: gradle/actions/setup-gradle@v6
+
+    # Signed with the public github-public-release key committed in the repo, so this needs
+    # no secrets. MAPTILER_KEY is absent here, so the map uses OpenFreeMap tiles, which need no
+    # key — see app/build.gradle.kts.
+    - name: Build release APK
+      shell: bash
+      run: ./gradlew :app:assembleRelease --stacktrace

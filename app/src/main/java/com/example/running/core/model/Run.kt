@@ -1,0 +1,41 @@
+package com.example.running.core.model
+
+data class RunStats(
+    val distanceM: Double = 0.0,
+    val elapsedMillis: Long = 0,
+    val movingMillis: Long = 0,
+    val pausedMillis: Long = 0,
+    val avgPaceSecPerKm: Double? = null,
+    val maxSpeedMps: Double? = null,
+    val elevationGainM: Double? = null,
+    val elevationLossM: Double? = null,
+    val elevationSource: ElevationSource = ElevationSource.NONE,
+    val caloriesKcal: Double? = null,
+    val steps: Int? = null,
+    val avgCadenceSpm: Double? = null,
+    val walkFraction: Double? = null,
+    val stepFilledM: Double = 0.0,
+    val bounds: GeoBounds? = null,
+    val weightKgUsed: Double? = null,
+    val strideMUsed: Double? = null,
+)
+
+data class Run(
+    val id: String,
+    val name: String,
+    val nameIsCustom: Boolean,
+    val type: ActivityType,
+    val typeIsManual: Boolean,
+    val status: RunStatus,
+    val startedAtMillis: Long,
+    val endedAtMillis: Long?,
+    val zoneId: String,
+    val engineMode: LocationEngineMode,
+    val startEngine: LocationEngine,
+    val engineFallback: Boolean,
+    val devDualEngine: Boolean,
+    val stats: RunStats,
+    val analysisVersion: Int,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+)

@@ -1,0 +1,65 @@
+# Gradle
+.gradle
+/build
+build/
+/captures
+.externalNativeBuild
+.cxx
+
+# Kotlin
+.kotlin/
+*.iml
+
+# Local config / secrets
+local.properties
+keystore.properties
+*.jks
+*.keystore
+# ...except the deliberately public release key. It signs the GitHub release APKs so
+# they install as updates over each other; its passwords are in app/build.gradle.kts
+# next to it, and it is worthless for anything but that.
+!github-public-release.jks
+*.p12
+*.pem
+*.env
+.env.*
+secrets.properties
+
+# Build outputs
+/app/release/
+/app/debug/
+*.apk
+*.aab
+
+# IntelliJ / Android Studio
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deploymentTargetDropDown.xml
+/.idea/shelf/
+/.idea/sonarlint/
+/.idea/codeStyles/
+/.idea/dictionaries/
+/.idea/tasks.xml
+/.idea/usage.statistics.xml
+/.idea/dataSources/
+/.idea/dataSources.xml
+/.idea/httpRequests/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs / temp
+*.log
+*.tmp
+hs_err_pid*
+
+# Claude
+.claude/

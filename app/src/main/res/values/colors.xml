@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window/splash only. App colours live in ui/theme/Color.kt. -->
+    <color name="black">#FF000000</color>
+    <color name="accent">#FFFF6A2B</color>
+</resources>

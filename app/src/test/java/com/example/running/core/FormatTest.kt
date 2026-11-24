@@ -1,0 +1,72 @@
+package com.example.running.core
+
+import com.example.running.core.util.formatCadence
+import com.example.running.core.util.formatCalories
+import com.example.running.core.util.formatDistance
+import com.example.running.core.util.formatDistanceKm
+import com.example.running.core.util.formatDuration
+import com.example.running.core.util.formatDurationShort
+import com.example.running.core.util.formatElevation
+import com.example.running.core.util.formatPace
+import com.example.running.core.util.formatPaceWithUnit
+import com.example.running.core.util.formatRelativeDay
+import com.example.running.core.util.formatRunDate
+import com.example.running.core.util.formatRunDateTime
+import com.example.running.testing.FakeClock
+import com.google.common.truth.Truth.assertThat
+import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
+class FormatTest {
+    private val zone = "Asia/Kolkata"
+
+    @Test fun distance() {
+        assertThat(formatDistanceKm(5_021.0)).isEqualTo("5.02")
+        assertThat(formatDistance(5_021.0)).isEqualTo("5.02 km")
+        assertThat(formatDistanceKm(12_345.0, decimals = 1)).isEqualTo("12.3")
+        assertThat(formatDistance(0.0)).isEqualTo("0.00 km")
+    }
+
+    @Test fun pace() {
+        assertThat(formatPace(332.0)).isEqualTo("5:32")
+        assertThat(formatPace(59.6)).isEqualTo("1:00")
+        assertThat(formatPace(null)).isEqualTo("--:--")
+        assertThat(formatPace(3600.0)).isEqualTo("--:--")
+        assertThat(formatPace(Double.POSITIVE_INFINITY)).isEqualTo("--:--")
+        assertThat(formatPaceWithUnit(332.0)).isEqualTo("5:32 /km")
+    }
+
+    @Test fun duration() {
+        assertThat(formatDuration(32 * 60_000L + 12_000)).isEqualTo("32:12")
+        assertThat(formatDuration(3_723_000)).isEqualTo("1:02:03")
+        assertThat(formatDuration(-5)).isEqualTo("0:00")
+        assertThat(formatDurationShort(2 * 3_600_000L + 19 * 60_000L)).isEqualTo("2h 19m")
+        assertThat(formatDurationShort(45 * 60_000L)).isEqualTo("45m")
+        assertThat(formatDurationShort(38_000)).isEqualTo("38s")
+    }
+
+    @Test fun misc() {
+        assertThat(formatElevation(105.6)).isEqualTo("106 m")
+        assertThat(formatElevation(null)).isEqualTo("–")
+        assertThat(formatCalories(412.4)).isEqualTo("412")
+        assertThat(formatCalories(null)).isEqualTo("–")
+        assertThat(formatCadence(171.7)).isEqualTo("172")
+    }
+
+    @Test fun dates() {
+        val t = ZonedDateTime.of(2026, 11, 24, 7, 2, 0, 0, ZoneId.of(zone)).toInstant().toEpochMilli()
+        assertThat(formatRunDateTime(t, zone)).isEqualTo("Tue, 24 Nov 2026 · 7:02 AM")
+        assertThat(formatRunDate(t, zone)).isEqualTo("24 Nov 2026")
+    }
+
+    @Test fun relativeDay() {
+        val now = ZonedDateTime.of(2026, 11, 24, 20, 0, 0, 0, ZoneId.of(zone)).toInstant().toEpochMilli()
+        val clock = FakeClock(now)
+        val day = 24 * 3_600_000L
+        assertThat(formatRelativeDay(now - 3_600_000L, zone, clock)).isEqualTo("Today")
+        assertThat(formatRelativeDay(now - day, zone, clock)).isEqualTo("Yesterday")
+        assertThat(formatRelativeDay(now - 2 * day, zone, clock)).isEqualTo("Sun")
+        assertThat(formatRelativeDay(now - 12 * day, zone, clock)).isEqualTo("12 Nov")
+    }
+}
