@@ -1796,3 +1796,16 @@ merge; MapLibre rendering and the offline download are unverified on real tiles;
 fake LiveMetrics, so a replay test of A against B's real LiveMetrics is still missing; `RunSaved` has no
 replay, so finishing from the notification while Record is off-screen does not open Run detail; a run
 whose analysis always throws loops back to the recovery prompt.
+
+### 10.4 Run 3 fix pass: emulator smoke test (2026-11-24)
+
+On `Running_Test` (release APK): onboarding, a ~1.2 km replayed run with a pause (movement while
+paused not counted), a crash (`am crash`, sticky service restart auto-resumed) and a force-stop
+(auto-resumed on app open), finish → Run detail, Activities, Progress, PBs, Settings, Backup.
+Two crashes found and fixed in `ui/components/charts/`: Vico 3 rejects x values with more than four
+decimals (Run detail charts now snap x to a regular grid and pass it as the x step) and blank axis
+labels (Progress weekly labels are now thinned by the item placer instead of `" "`). The line chart
+y range now fits the data on round label steps instead of starting at 0.
+Emulator note: `adb emu geo fix` reports a trusted Doppler speed of 0, which the analysis treats as
+standing still (distance stays 0). Replay with a shell test provider instead
+(`cmd location providers add-test-provider gps` + `set-test-provider-location`), which sends no speed.

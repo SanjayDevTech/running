@@ -10,10 +10,10 @@ import java.time.ZoneId
  * 12 labels never collide; the others are a single space.
  */
 internal fun chartLabels(buckets: List<PeriodTotals>, period: ProgressPeriod, zone: ZoneId): List<String> =
-    buckets.mapIndexed { i, b ->
+    // Every bar gets its label; AppBarChart thins them out (Vico rejects blank labels).
+    buckets.map { b ->
         when (period) {
-            ProgressPeriod.WEEKLY ->
-                if ((buckets.lastIndex - i) % 2 == 0) formatWeekLabel(b.startMillis, zone) else " "
+            ProgressPeriod.WEEKLY -> formatWeekLabel(b.startMillis, zone)
             ProgressPeriod.MONTHLY -> formatMonthLabel(b.startMillis, zone)
         }
     }

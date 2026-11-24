@@ -104,7 +104,7 @@ class ProgressLogicTest {
     @Test fun labelsAndAxis() {
         val s = buildProgressState(emptyList(), ActivityFilter.ALL, ProgressPeriod.WEEKLY, ProgressMetric.TIME, null, now, zone)
         assertThat(s.bars.last().label).isEqualTo("23 Nov")
-        assertThat(s.bars[10].label).isEqualTo(" ")
+        assertThat(s.bars[10].label).isNotEmpty()
         val m = buildProgressState(emptyList(), ActivityFilter.ALL, ProgressPeriod.MONTHLY, ProgressMetric.TIME, null, now, zone)
         assertThat(m.bars.last().label).isEqualTo("Nov")
         assertThat(m.isEmpty).isTrue()

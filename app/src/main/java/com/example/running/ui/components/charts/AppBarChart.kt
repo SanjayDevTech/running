@@ -96,7 +96,13 @@ fun AppBarChart(
                 tick = null,
                 guideline = null,
                 valueFormatter = remember {
-                    CartesianValueFormatter { _, v, _ -> labels.value.getOrNull(v.toInt()) ?: " " }
+                    CartesianValueFormatter { _, v, _ -> labels.value.getOrNull(v.toInt())?.takeIf { it.isNotBlank() } ?: "·" }
+                },
+                // Vico rejects blank labels, so thin them with the item placer: at most ~7 labels,
+                // always including the last (current-period) bar.
+                itemPlacer = remember(bars.size) {
+                    val spacing = (bars.size + MAX_X_LABELS - 1) / MAX_X_LABELS
+                    HorizontalAxis.ItemPlacer.aligned(spacing = { spacing.coerceAtLeast(1) }, offset = { (bars.size - 1) % spacing.coerceAtLeast(1) })
                 },
             ),
             marker = if (onSelect != null) tapMarker else null,
@@ -107,6 +113,8 @@ fun AppBarChart(
         scrollState = rememberVicoScrollState(scrollEnabled = false),
     )
 }
+
+private const val MAX_X_LABELS = 7
 
 /** Draws nothing: bar taps only need the visibility callback, not a tooltip. */
 private object InvisibleMarker : CartesianMarker

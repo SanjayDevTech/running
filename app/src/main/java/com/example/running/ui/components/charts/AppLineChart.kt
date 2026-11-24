@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Hairline
@@ -25,6 +26,7 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisLabelComponent
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
@@ -61,12 +63,20 @@ fun AppLineChart(
 ) {
     if (points.size < 2) return
     val sign = if (invertY) -1.0 else 1.0
+    // Vico derives its x step from the data and rejects x values finer than four decimals, so arbitrary
+    // distances (e.g. 1.23456 km) crash it. Snap x onto a regular grid and give Vico that grid as the step.
+    val grid = remember(points) { ChartGrid.of(points) }
+    val main = remember(points, grid) { grid.snap(points) }
+    val second = remember(comparison, grid) { comparison?.let(grid::snap)?.takeIf { it.size >= 2 } }
+    if (main.size < 2) return
+    val yPlan = remember(main, second, sign) { YAxisPlan.of(main + second.orEmpty(), sign) }
+    val yBounds = yPlan.bounds
     val producer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(points, comparison, invertY) {
+    LaunchedEffect(main, second, invertY) {
         producer.runTransaction {
             lineModel {
-                series(points.map { it.x }, points.map { it.y * sign })
-                comparison?.takeIf { it.size >= 2 }?.let { c -> series(c.map { it.x }, c.map { it.y * sign }) }
+                series(main.map { it.x }, main.map { it.y * sign })
+                second?.let { c -> series(c.map { it.x }, c.map { it.y * sign }) }
             }
         }
     }
@@ -89,7 +99,7 @@ fun AppLineChart(
         fill = remember { LineCartesianLayer.LineFill.single(Fill(TextTertiary)) },
         stroke = remember { LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp) },
     )
-    val lines = if (comparison != null && comparison.size >= 2) listOf(mainLine, comparisonLine) else listOf(mainLine)
+    val lines = if (second != null) listOf(mainLine, comparisonLine) else listOf(mainLine)
 
     val axisLabel = rememberAxisLabelComponent(style = AppText.label.copy(color = TextSecondary, fontSize = AppText.eyebrow.fontSize))
     val guideline = rememberAxisGuidelineComponent(fill = Fill(Hairline))
@@ -125,13 +135,19 @@ fun AppLineChart(
 
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberLineCartesianLayer(lineProvider = LineCartesianLayer.LineProvider.series(lines)),
+            rememberLineCartesianLayer(
+                lineProvider = LineCartesianLayer.LineProvider.series(lines),
+                // Fit y to the data: the default range starts at 0, which for pace (plotted as -y) puts a
+                // meaningless "--:--" label at the top and squashes the line.
+                rangeProvider = remember(yBounds) { CartesianLayerRangeProvider.fixed(minY = yBounds.start, maxY = yBounds.endInclusive) },
+            ),
             startAxis = VerticalAxis.rememberStart(
                 label = axisLabel,
                 line = null,
                 tick = null,
                 guideline = guideline,
                 valueFormatter = remember(sign) { CartesianValueFormatter { _, v, _ -> yFmt.value(v * sign) } },
+                itemPlacer = remember(yPlan) { VerticalAxis.ItemPlacer.step(step = { yPlan.step }) },
             ),
             bottomAxis = HorizontalAxis.rememberBottom(
                 label = axisLabel,
@@ -139,13 +155,87 @@ fun AppLineChart(
                 tick = null,
                 guideline = null,
                 valueFormatter = remember { CartesianValueFormatter { _, v, _ -> xFmt.value(v) } },
+                itemPlacer = remember(grid) { HorizontalAxis.ItemPlacer.aligned(spacing = { grid.labelSpacing }) },
             ),
             marker = marker,
             markerVisibilityListener = listener,
-            persistentMarkers = if (selectedX != null) { _ -> marker at selectedX } else null,
+            persistentMarkers = if (selectedX != null) { _ -> marker at grid.snapX(selectedX) } else null,
+            getXStep = { grid.step },
         ),
         modelProducer = producer,
         modifier = modifier.fillMaxWidth().height(height),
         scrollState = rememberVicoScrollState(scrollEnabled = false),
     )
+}
+
+/** Regular x grid for Vico: ~[TARGET_CELLS] cells over the data span, step a 1-2-5 value, 4 decimals max. */
+internal class ChartGrid private constructor(val step: Double, private val origin: Double, val labelSpacing: Int) {
+    fun snapX(x: Double): Double =
+        Math.round((origin + Math.round((x - origin) / step) * step) * 10_000.0) / 10_000.0
+
+    /** Points moved onto the grid; points landing on the same x are averaged. */
+    fun snap(points: List<ChartPoint>): List<ChartPoint> =
+        points.groupBy { snapX(it.x) }.map { (x, group) -> ChartPoint(x, group.sumOf { it.y } / group.size) }
+            .sortedBy { it.x }
+
+    companion object {
+        private const val TARGET_CELLS = 200
+        private const val TARGET_LABELS = 5
+        private const val MIN_STEP = 0.0001
+
+        fun of(points: List<ChartPoint>): ChartGrid {
+            val min = points.minOf { it.x }
+            val max = points.maxOf { it.x }
+            val step = niceStep((max - min) / TARGET_CELLS)
+            val origin = Math.round(Math.floor(min / step) * step * 10_000.0) / 10_000.0
+            val cells = ((max - min) / step).toInt().coerceAtLeast(1)
+            return ChartGrid(step, origin, (cells / TARGET_LABELS).coerceAtLeast(1))
+        }
+
+        /** 1-2-5 step of any size (y axis). */
+        internal fun niceY(raw: Double): Double {
+            if (!raw.isFinite() || raw <= 0.0) return 1.0
+            val magnitude = Math.pow(10.0, Math.floor(Math.log10(raw)))
+            return listOf(1.0, 2.0, 5.0, 10.0).first { it * magnitude >= raw - 1e-12 } * magnitude
+        }
+
+        internal fun niceStep(raw: Double): Double {
+            if (!raw.isFinite() || raw <= MIN_STEP) return MIN_STEP
+            val magnitude = Math.pow(10.0, Math.floor(Math.log10(raw)))
+            val nice = listOf(1.0, 2.0, 5.0, 10.0).first { it * magnitude >= raw } * magnitude
+            return (Math.round(nice * 10_000.0) / 10_000.0).coerceAtLeast(MIN_STEP)
+        }
+    }
+}
+
+/** Y axis: a label step and a range that starts on a step multiple, so labels land on round values. */
+internal class YAxisPlan(val step: Double, val bounds: ClosedFloatingPointRange<Double>) {
+    companion object {
+        /** Pace labels are durations: whole 15 s / 30 s / minutes. */
+        private val PACE_STEPS = listOf(15.0, 30.0, 60.0, 120.0, 180.0, 300.0, 600.0, 900.0)
+        private const val TARGET_LABELS = 4
+
+        /**
+         * [points] carry the real y; [sign] -1 plots -y (pace). An inverted axis stays below 0.
+         */
+        fun of(points: List<ChartPoint>, sign: Double): YAxisPlan {
+            val ys = points.map { it.y * sign }
+            val lo = ys.min()
+            val hi = ys.max()
+            val span = (hi - lo).takeIf { it > 1e-9 } ?: maxOf(abs(hi) * 0.1, 1.0)
+            val raw = span / TARGET_LABELS
+            val step = if (sign < 0) PACE_STEPS.firstOrNull { it >= raw } ?: (Math.ceil(raw / 600.0) * 600.0)
+            else ChartGrid.niceY(raw)
+            var bottom = Math.floor(lo / step) * step
+            var top = Math.ceil(hi / step) * step
+            if (top - bottom < step * 1.5) { // flat line: give it a step either side
+                top += step
+                bottom -= step
+            }
+            // Pace never reaches 0 (no "--:--" label at the top): in the rare case that rounding up hits 0,
+            // stop just above the fastest value instead (labels then sit off the round values).
+            if (sign < 0 && top >= 0.0) top = hi * 0.9
+            return YAxisPlan(step, bottom..top)
+        }
+    }
 }
