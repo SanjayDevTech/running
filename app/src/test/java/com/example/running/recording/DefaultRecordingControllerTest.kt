@@ -1,5 +1,7 @@
 package com.example.running.recording
 
+import com.example.running.analysis.DefaultLiveMetricsFactory
+import com.example.running.core.contracts.LiveMetricsFactory
 import com.example.running.core.model.ActivityType
 import com.example.running.core.model.AppSettings
 import com.example.running.core.model.GeoBounds
@@ -48,6 +50,8 @@ class DefaultRecordingControllerTest {
         steps: List<StepEvent> = emptyList(),
         hasStepDetector: Boolean = true,
         pressure: List<PressureSample> = emptyList(),
+        /** Real live metrics (B's DefaultLiveMetrics) instead of the haversine fake, for replay tests. */
+        realMetrics: LiveMetricsFactory? = null,
         val platform: FakeRecordingPlatform = FakeRecordingPlatform(),
         val store: InMemoryRecoveryStore = InMemoryRecoveryStore(),
         val analyzer: FakeRunAnalyzer = FakeRunAnalyzer { input ->
@@ -77,7 +81,7 @@ class DefaultRecordingControllerTest {
             engines = LocationEngineManager(listOf(play, platformSource), clock),
             stepSource = FakeStepSource(steps, hasStepDetector = hasStepDetector, hasStepCounter = true),
             pressureSource = FakePressureSource(pressure, isAvailable = pressure.isNotEmpty()),
-            liveMetricsFactory = metrics,
+            liveMetricsFactory = realMetrics ?: metrics,
             finalizer = RunFinalizer(repo, settingsRepo, analyzer, offline, scope.backgroundScope, dispatchers),
             platform = platform,
             recoveryStore = store,
@@ -460,5 +464,50 @@ class DefaultRecordingControllerTest {
         val last = route.points.last()
         assertThat(haversineMeters(first.lat, first.lon, last.lat, last.lon)).isGreaterThan(8.0)
         assertThat(h.controller.userLocation.value).isNotNull()
+    }
+
+    // ------------------------------------------------------------------ replay against the real LiveMetrics
+
+    @Test fun realLiveMetricsLeaveMovementWhilePausedOut() = runTest {
+        // 3 m/s for 160 s; the runner keeps moving through a 20 s pause, which must not count.
+        val h = Harness(this, playFixes = straightFixes(170), realMetrics = DefaultLiveMetricsFactory())
+        warmUpAndStart(h)
+        advanceTimeBy(60_000)
+        h.controller.pause()
+        advanceTimeBy(20_000)
+        h.controller.resume()
+        advanceTimeBy(60_000)
+        val stats = (h.state as RecordingState.Recording).stats
+        assertThat(stats.pausedMillis).isWithin(1_500).of(20_000)
+        assertThat(stats.distanceM).isWithin(20.0).of(120 * 3.0)
+        assertThat(stats.avgPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
+        assertThat(stats.currentPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
+        // The route has no point from the paused stretch: no jump longer than a few seconds of running.
+        val pts = h.controller.liveRoute.value!!.points
+        val maxHop = pts.zipWithNext { a, b -> haversineMeters(a.lat, a.lon, b.lat, b.lon) }.max()
+        assertThat(maxHop).isGreaterThan(20 * 3.0)                     // the line across the pause...
+        val ds = pts.zipWithNext { a, b -> b.distanceM - a.distanceM }.max()
+        assertThat(ds).isLessThan(10.0)                                 // ...adds no distance
+    }
+
+    @Test fun realLiveMetricsKeepPaceAfterAutoResumeGap() = runTest {
+        // Recorded 0–59 s, process died, auto-resumed at T0 (600 s) with the runner still going at 3 m/s.
+        val startedAt = T0 - 600_000
+        val after = straightFixes(640, startMillis = startedAt).drop(600)
+        val h = Harness(
+            this, playFixes = after, realMetrics = DefaultLiveMetricsFactory(),
+            platform = FakeRecordingPlatform(backgroundLocation = true),
+        )
+        val runId = h.seedInterruptedRun()
+        h.controller.checkForInterruptedRun()
+        runCurrent()
+        assertThat((h.state as RecordingState.Recording).stats.distanceM).isWithin(10.0).of(59 * 3.0)
+        advanceTimeBy(30_000)
+        val stats = (h.state as RecordingState.Recording).stats
+        assertThat(stats.distanceM).isWithin(30.0).of(630 * 3.0)
+        assertThat(stats.avgPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
+        assertThat(stats.currentPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
+        stop(h)
+        assertThat(h.graph(runId).run.status).isEqualTo(RunStatus.FINISHED)
     }
 }
