@@ -65,7 +65,7 @@ android {
             // loaded. MapLibre ships a native library per ABI, so dropping the x86 pair saves
             // real space on every phone. Debug builds keep every ABI, so emulators are unaffected.
             ndk {
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+                abiFilters += listOf("arm64-v8a")
             }
         }
     }

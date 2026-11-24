@@ -1463,7 +1463,7 @@ Chart library decision: **Vico 3 (`compose-m3`)** — one lib for D and E, wrapp
 - `namespace = applicationId = "com.example.running"`; `compileSdk { version = release(37) }`, `compileSdkMinor = 2` (android-37.2 is installed; drop the minor if it fails); `minSdk = 31`; `targetSdk = 37`; `versionCode = 1`; `versionName = "1.0"`.
 - `buildFeatures { compose = true; buildConfig = true }`.
 - `buildConfigField("String", "MAPTILER_KEY", "\"$mapTilerKey\"")` read via food-tracker's `creds()` helper from `local.properties` / env, default `""`.
-- `signingConfigs.githubPublicRelease` (§7); release: `isMinifyEnabled = true`, `isShrinkResources = true`, `proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")`, `ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }` (MapLibre ships native libs; this matters here).
+- `signingConfigs.githubPublicRelease` (§7); release: `isMinifyEnabled = true`, `isShrinkResources = true`, `proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")`, `ndk { abiFilters += listOf("arm64-v8a") }` (MapLibre ships native libs; this matters here).
 - `androidResources { localeFilters += listOf("en") }`.
 - `packaging.resources.excludes`: `/META-INF/{AL2.0,LGPL2.1}`, `/META-INF/*.version`, `/META-INF/com.android.tools/**`, `/DebugProbesKt.bin`, `/kotlin-tooling-metadata.json`.
 - `compileOptions` Java 11; `ksp { arg("room.schemaLocation", "$projectDir/schemas") }`; androidTest assets from `schemas`.
@@ -1668,7 +1668,7 @@ and C can build UI before A records anything. Guarded by `BuildConfig.DEBUG` so 
   Play services, Room, WorkManager, kotlinx.serialization ship consumer rules — add rules only for
   a proven release crash. The template's `optimization {}` block and `src/main/keepRules/` are
   replaced by this.
-- **ABI** `arm64-v8a`, `armeabi-v7a` on release only; **locales** `en`; packaging excludes as §4.3.
+- **ABI** `arm64-v8a` only on release (64-bit only, decided 2026-11-24 to cut MapLibre size; differs from food-tracker); **locales** `en`; packaging excludes as §4.3.
 - **CI** (`.github/`):
   - `actions/build-apk/action.yml` "Build release APK": `actions/setup-java@v6` temurin **25**
     (matches `gradle-daemon-jvm.properties`), `gradle/actions/setup-gradle@v6`,
