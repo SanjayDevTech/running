@@ -14,10 +14,23 @@ object Permissions {
     const val NOTIFICATIONS = Manifest.permission.POST_NOTIFICATIONS
     const val ACTIVITY_RECOGNITION = Manifest.permission.ACTIVITY_RECOGNITION
 
+    /**
+     * "Allow all the time" location. Request it on its own, only after fine location is granted:
+     * on API 30+ the system answers the request by opening this app's location settings page
+     * (it never shows an in-app dialog). Used only to restart recording after a process kill.
+     */
+    const val BACKGROUND_LOCATION = Manifest.permission.ACCESS_BACKGROUND_LOCATION
+
     private fun granted(ctx: Context, permission: String): Boolean =
         ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED
 
     fun hasFineLocation(ctx: Context): Boolean = granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+
+    /** True when location is allowed "all the time" (needed to restart the location FGS from the background). */
+    fun hasBackgroundLocation(ctx: Context): Boolean = granted(ctx, BACKGROUND_LOCATION)
+
+    /** Background location can only be requested once fine location is granted. */
+    fun canRequestBackgroundLocation(ctx: Context): Boolean = hasFineLocation(ctx) && !hasBackgroundLocation(ctx)
 
     fun hasNotifications(ctx: Context): Boolean = granted(ctx, NOTIFICATIONS)
 

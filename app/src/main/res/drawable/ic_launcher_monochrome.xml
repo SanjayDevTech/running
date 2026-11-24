@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon monochrome: a running figure, single colour; the launcher tints it for themed icons.
+     Drawn inside the 66 dp adaptive-icon safe zone (centre 54,54). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- head -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M63,30m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <!-- torso -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M58,42L51,59" />
+    <!-- arms: front swings forward and up, back swings behind -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="6.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M57,45L67,52L74,45M57,45L46,46L39,53" />
+    <!-- legs: front knee driven forward, back leg pushing off -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M51,59L63,66L59,79M51,59L45,71L33,73" />
+</vector>

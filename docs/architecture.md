@@ -918,7 +918,10 @@ object Permissions {
     val LOCATION = arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION)
     const val NOTIFICATIONS = POST_NOTIFICATIONS
     const val ACTIVITY_RECOGNITION = android.Manifest.permission.ACTIVITY_RECOGNITION
+    const val BACKGROUND_LOCATION = ACCESS_BACKGROUND_LOCATION   // request alone, after fine location (§8.1)
     fun hasFineLocation(ctx: Context): Boolean
+    fun hasBackgroundLocation(ctx: Context): Boolean             // "Allow all the time"
+    fun canRequestBackgroundLocation(ctx: Context): Boolean      // fine granted && background not yet granted
     fun hasNotifications(ctx: Context): Boolean
     fun hasActivityRecognition(ctx: Context): Boolean
     fun appSettingsIntent(ctx: Context): Intent
@@ -991,7 +994,7 @@ interface RecordingController {
     fun endWarmUp()
     fun start()                                  // no-op unless state is WarmingUp with startAllowed
     fun pause(); fun resume(); fun stop()        // stop → Saving → RunSaved(runId) → Idle
-    suspend fun checkForInterruptedRun()         // on UI launch: auto-resume or NeedsRecoveryDecision
+    suspend fun checkForInterruptedRun()         // on UI launch: auto-resume or NeedsRecoveryDecision (§8.1)
     fun resumeInterrupted(runId: String)
     fun finishInterrupted(runId: String)
 }
@@ -1013,6 +1016,12 @@ Stop pipeline (A's `RunFinalizer`, run on `appScope`): close open pause → `loa
 `analysis.runAnalyzer.analyze` → `saveAnalysis` → `settings.setLearnedStrides` (if non-null) →
 `map.offline.downloadRunArea(runId, bounds)` (fire-and-forget) → emit `RunSaved`. The Record screen
 navigates to `RunDetailRoute(runId)` on `RunSaved` (auto-save, no Save/Discard).
+
+Crash recovery (A, decided §8.1): when the process dies with an `ACTIVE` run, A restarts the location
+FGS and resumes recording automatically **if `Permissions.hasBackgroundLocation()`** — both from the
+service restart (`START_STICKY`) and from `checkForInterruptedRun()`. Without background location (or
+if the FGS start is refused, e.g. `ForegroundServiceStartNotAllowedException`), A does not retry from
+the background and instead surfaces `NeedsRecoveryDecision` (resume / finish) on the next app open.
 
 ### 3.2 Location + sensor sources — implemented by A
 
@@ -1281,6 +1290,12 @@ Feature notes that pin cross-track behaviour:
 - **D** "This week" strip on Activities uses `bucketByDay` + `totals` from `core/stats`.
 - **E** streaks (consecutive weeks with ≥1 activity; current + longest; day streak) live in `ui/progress/Streaks.kt` (E).
 - **E** charts: weekly (last 12 weeks) and monthly (last 12 months) via `bucketByWeek`/`bucketByMonth` + `AppBarChart`/`AppLineChart`; metric switch Distance / Time / Elevation; `ActivityFilterChips`.
+- **F** onboarding permission order: fine location (`Permissions.LOCATION`) → **background location as
+  its own step** (only once fine is granted; explain "lets a run resume if Android closes the app
+  mid-run"; on API 30+ the request opens the system settings page where the user picks "Allow all the
+  time"; skippable, never blocks onboarding) → notifications → activity recognition → battery
+  exemption. Settings shows the background-location state with a button to grant it later
+  (`Permissions.canRequestBackgroundLocation`).
 - **F** dev mode: tapping the version row 7 times sets `devModeUnlocked`; then a "Developer" section shows `devDualEngine`.
 - **F** Settings engine mode picker: Auto / Google / Built-in with one-line explanations; disabled while recording.
 
@@ -1469,6 +1484,7 @@ The integrator applies SCRs in Run 3 and removes the stand-ins.
 <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 <uses-permission android:name="android.permission.WAKE_LOCK" />
 <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />  <!-- crash auto-resume only, §8.1 -->
 
 <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 <uses-feature android:name="android.hardware.sensor.stepdetector" android:required="false" />
@@ -1493,7 +1509,8 @@ The integrator applies SCRs in Run 3 and removes the stand-ins.
 manifest resolves. Notification actions (pause/resume/stop) use `PendingIntent.getService` to the
 same service with actions `com.example.running.recording.PAUSE|RESUME|STOP` (A defines the
 constants inside its package) — no broadcast receiver is declared. `ACCESS_BACKGROUND_LOCATION` is
-**not** requested (recording always starts from the foreground; see open questions).
+declared and requested by onboarding (F) as a separate step; recording still always starts from the
+foreground, and the permission is used only to restart the FGS after a process kill (§8.1).
 
 ### 5.7 Definition of done per track
 - `./gradlew assembleDebug testDebugUnitTest` green in the worktree (also `lintDebug` without new errors).
@@ -1586,7 +1603,10 @@ and C can build UI before A records anything. Guarded by `BuildConfig.DEBUG` so 
 ## 7. Build / release conventions (copied from food-tracker)
 
 - **Signing**: `github-public-release.jks` committed at repo root (deliberately public; passwords and
-  alias all `github-public-release`, PKCS12, RSA 4096, 100-year validity). Generated in Run 1 with
+  alias all `github-public-release`, PKCS12, RSA 4096, 100-year validity). This is Running's **own key**:
+  same file name, alias, passwords and parameters as food-tracker's, but a separately generated key pair
+  (different certificate, so the two apps never share a signing identity). Kept as is (user decision,
+  2026-11-24); do not regenerate it, or installed builds can no longer be updated. Generated in Run 1 with
   `keytool -genkeypair -keystore github-public-release.jks -storetype PKCS12 -alias github-public-release -keyalg RSA -keysize 4096 -validity 36500 -storepass github-public-release -keypass github-public-release -dname "CN=Running GitHub Public Release"`.
   `signingConfigs.create("githubPublicRelease")` with the same comment as food-tracker (never use for Play).
 - **R8**: minify + shrink resources on release; `proguard-rules.pro` keeps
@@ -1614,13 +1634,16 @@ and C can build UI before A records anything. Guarded by `BuildConfig.DEBUG` so 
 
 ---
 
-## 8. Open questions / assumptions (decide before or during Run 2)
+## 8. Decisions (decided 2026-11-24 after Run 1 review)
 
-1. **Background restart of the recording service after a process kill.** With only while-in-use
-   location, Android may refuse a location FGS restarted from the background (START_STICKY). A will
-   implement auto-resume where the OS allows it and fall back to the resume/finish prompt on the
-   next app open. Requesting `ACCESS_BACKGROUND_LOCATION` would make auto-resume more reliable but
-   adds a scary permission screen; currently **not** requested.
+All former open questions are settled; tracks treat these as rules.
+
+1. **Background location: requested.** `ACCESS_BACKGROUND_LOCATION` is declared (§5.6). Onboarding (F)
+   asks for it as a separate step after fine location (API 30+: settings-page flow, "Allow all the
+   time"), explaining it is only for resuming a run after the system kills the app; skipping it is
+   allowed. Recording always starts from the foreground. A's crash recovery auto-restarts the
+   location FGS and resumes when `Permissions.hasBackgroundLocation()` is true, and otherwise (or if
+   the FGS start is refused) falls back to the resume/finish prompt on the next app open (§3.1).
 2. **Auto-backup**: `android:allowBackup="false"` (JSON backup is the mechanism; restoring a
    half-recorded ACTIVE run via Google backup would confuse recovery). Food-tracker uses `true`.
 3. **Best-effort timing basis**: moving time (stops and pauses excluded), consistent with "stops
@@ -1634,6 +1657,8 @@ and C can build UI before A records anything. Guarded by `BuildConfig.DEBUG` so 
 8. **CI unit tests**: food-tracker has no test workflow; none added. Easy to add later.
 9. **Live Updates** (`POST_PROMOTED_NOTIFICATIONS`, `Notification.ProgressStyle`) are used only on
    API 36+; older devices get a normal ongoing notification with public lock-screen visibility.
+10. **Signing key**: keep Running's own public key generated in Run 1 (distinct from food-tracker's, §7).
+11. **Launcher icon**: adaptive vector icon of a running figure (§9.13).
 
 ---
 
@@ -1669,6 +1694,17 @@ through the BOM. compileSdk 37 minor 2 works.
 10. `SyntheticRuns` API: `Spec(...)`, `fixes(spec, startMillis)`, `runGraph(id, startMillis, zoneId, spec, name?)`,
     `demoGraphs(nowMillis, zone, count = 40, weeks = 16)` (ids `demo-00`…).
 11. Robolectric runs at `sdk=35` (`app/src/test/resources/robolectric.properties`); it does not ship 37 yet.
-12. Signing key generated exactly per §7 (RSA 4096, 36500 days, PKCS12, `CN=Running GitHub Public Release`),
-    matching food-tracker, rather than the Run-1 task text's RSA 2048 / 10000 days / `CN=Running`.
-13. Launcher icon is still the Android Studio template icon.
+12. Signing key generated exactly per §7 (RSA 4096, 36500 days, PKCS12, `CN=Running GitHub Public Release`)
+    — the same parameters and file/alias/password convention as food-tracker, rather than the Run-1 task
+    text's RSA 2048 / 10000 days / `CN=Running`. It is a new key pair, distinct from food-tracker's
+    (SHA-256 `EE:A6:59:61:…:A5:29:F2:18` vs food-tracker `C0:07:52:08:…:DB:60:D0:05`).
+13. Launcher icon (foundation patch): adaptive icon in `mipmap-anydpi/ic_launcher.xml` and
+    `ic_launcher_round.xml` (minSdk 31, so no density PNG/WebP fallbacks). Layers are vectors:
+    `drawable/ic_launcher_background.xml` (`Raised1` near-black), `ic_launcher_foreground.xml` (bold
+    running figure in `Accent`, inside the 66 dp safe zone) and `ic_launcher_monochrome.xml` (same
+    figure, single colour, for themed icons). The template WebP icons were deleted. The splash screen
+    reuses `@mipmap/ic_launcher`.
+
+**Foundation patch (after Run 1 review):** `ACCESS_BACKGROUND_LOCATION` declared;
+`Permissions.BACKGROUND_LOCATION`, `hasBackgroundLocation()`, `canRequestBackgroundLocation()` added
+(`test/…/core/PermissionsTest.kt`); §3.1 recovery rule, §3.8 onboarding order, §5.6, §7 and §8 updated.

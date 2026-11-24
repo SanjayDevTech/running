@@ -15,8 +15,11 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- ACCESS_BACKGROUND_LOCATION is deliberately NOT requested: recording always starts in the
-         foreground (architecture.md §8.1). -->
+    <!-- Background location: only so a recording can resume (location FGS restart) after the
+         system kills the app mid-run. Recording itself always starts in the foreground. Onboarding
+         asks for it as a separate step after fine location (settings-page flow on API 30+);
+         without it, crash recovery falls back to the resume/finish prompt (architecture.md §8.1). -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.stepdetector" android:required="false" />
