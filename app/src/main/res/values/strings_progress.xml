@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="progress_title">Progress</string>
+    <string name="progress_period_weekly">Weekly</string>
+    <string name="progress_period_monthly">Monthly</string>
+    <string name="progress_metric_distance">Distance</string>
+    <string name="progress_metric_time">Time</string>
+    <string name="progress_metric_runs">Activities</string>
+    <string name="progress_metric_elevation">Elevation</string>
+    <string name="progress_this_week">This week</string>
+    <string name="progress_this_month">This month</string>
+    <string name="progress_week_of">Week of %1$s</string>
+    <string name="progress_unit_km">km</string>
+    <string name="progress_chart_description">Bar chart of %1$s per period. Tap a bar to see that period.</string>
+
+    <string name="progress_streaks">Streaks</string>
+    <string name="progress_streak_current_weeks">Week streak</string>
+    <string name="progress_streak_longest_weeks">Longest week streak</string>
+    <string name="progress_streak_current_days">Day streak</string>
+    <string name="progress_streak_longest_days">Longest day streak</string>
+    <string name="progress_unit_weeks">wk</string>
+    <string name="progress_unit_days">d</string>
+
+    <string name="progress_totals">All time</string>
+
+    <string name="progress_pb_link">Personal bests</string>
+    <string name="progress_pb_link_subtitle">Fastest 1K, 5K, 10K and half marathon, longest run</string>
+
+    <string name="progress_recent">Recent activity</string>
+    <string name="progress_run_detail">%1$s · %2$s</string>
+
+    <string name="progress_empty_title">No activity yet</string>
+    <string name="progress_empty_body">Record a run or a walk and your weekly and monthly progress will show up here.</string>
+
+    <string name="pb_title">Personal bests</string>
+    <string name="pb_section_efforts">Fastest efforts</string>
+    <string name="pb_section_longest">Longest</string>
+    <string name="pb_longest_distance">Longest distance</string>
+    <string name="pb_longest_duration">Longest time</string>
+    <string name="pb_not_set">Not set yet</string>
+    <string name="pb_detail">%1$s · %2$s</string>
+    <string name="pb_empty_title">No personal bests yet</string>
+    <string name="pb_empty_body">Finish a run of at least 1 km and your fastest efforts will be tracked here.</string>
+</resources>
