@@ -1,6 +1,8 @@
 package com.example.running.recording
 
 import com.example.running.analysis.DefaultLiveMetricsFactory
+import com.example.running.analysis.DefaultRunAnalyzer
+import com.example.running.analysis.DefaultRunNamer
 import com.example.running.core.contracts.LiveMetricsFactory
 import com.example.running.core.model.ActivityType
 import com.example.running.core.model.AppSettings
@@ -16,6 +18,8 @@ import com.example.running.core.model.RunAnalysis
 import com.example.running.core.model.RunStats
 import com.example.running.core.model.RunStatus
 import com.example.running.core.model.SensorType
+import com.example.running.core.model.SensorSample
+import com.example.running.core.model.StepCounterReading
 import com.example.running.core.model.StepEvent
 import com.example.running.core.util.haversineMeters
 import com.example.running.location.LocationEngineManager
@@ -52,6 +56,8 @@ class DefaultRecordingControllerTest {
         pressure: List<PressureSample> = emptyList(),
         /** Real live metrics (B's DefaultLiveMetrics) instead of the haversine fake, for replay tests. */
         realMetrics: LiveMetricsFactory? = null,
+        counter: List<StepCounterReading> = emptyList(),
+        bootedAtMillis: Long = T0,
         val platform: FakeRecordingPlatform = FakeRecordingPlatform(),
         val store: InMemoryRecoveryStore = InMemoryRecoveryStore(),
         val analyzer: FakeRunAnalyzer = FakeRunAnalyzer { input ->
@@ -64,7 +70,7 @@ class DefaultRecordingControllerTest {
             )
         },
     ) {
-        val clock = SchedulerClock(scope.testScheduler)
+        val clock = SchedulerClock(scope.testScheduler, bootedAtMillis = bootedAtMillis)
         val dispatchers = TestAppDispatchers(StandardTestDispatcher(scope.testScheduler))
         val repo = FakeRunRepository()
         val settingsRepo = FakeSettingsRepository(settings)
@@ -79,7 +85,7 @@ class DefaultRecordingControllerTest {
             repository = repo,
             settings = settingsRepo,
             engines = LocationEngineManager(listOf(play, platformSource), clock),
-            stepSource = FakeStepSource(steps, hasStepDetector = hasStepDetector, hasStepCounter = true),
+            stepSource = FakeStepSource(steps, hasStepDetector = hasStepDetector, hasStepCounter = true, counter = counter),
             pressureSource = FakePressureSource(pressure, isAvailable = pressure.isNotEmpty()),
             liveMetricsFactory = realMetrics ?: metrics,
             finalizer = RunFinalizer(repo, settingsRepo, analyzer, offline, scope.backgroundScope, dispatchers),
@@ -509,5 +515,73 @@ class DefaultRecordingControllerTest {
         assertThat(stats.currentPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
         stop(h)
         assertThat(h.graph(runId).run.status).isEqualTo(RunStatus.FINISHED)
+    }
+
+    // ------------------------------------------------------------------ resume gap (step counter)
+
+    /** Recorded 0–59 s at 3 m/s and 180 spm with a boot-counter anchor at 59 s; the app died until T0 (120 s). */
+    private suspend fun Harness.seedRunWithCounterAnchor(): String {
+        val runId = "gap"
+        val startedAt = T0 - 120_000
+        repo.createActiveRun(runId, startedAt, "Asia/Kolkata", LocationEngineMode.GOOGLE, LocationEngine.PLAY, false)
+        repo.appendRawPoints(straightFixes(60, startMillis = startedAt).map { it.toRawPoint(runId, isPrimary = true, paused = false) })
+        val steps = (1..179).map { SensorSample(SensorType.STEP_DETECTOR, startedAt + it * 333L, 1.0) } // up to 59.6 s
+        repo.appendSensorSamples(runId, steps + SensorSample(SensorType.STEP_COUNTER_BOOT, startedAt + 59_000, 10_000.0))
+        return runId
+    }
+
+    @Test fun autoResumeBridgesTheGapWithStepCounterSteps() = runTest {
+        val startedAt = T0 - 120_000
+        // While dead the runner took 240 steps (the counter: anchor + 2 recorded after it + 240) on a
+        // path longer than the straight line; recording goes on north at 3 m/s from T0.
+        val h = Harness(
+            this, playFixes = straightFixes(150, startMillis = startedAt).drop(120), realMetrics = DefaultLiveMetricsFactory(),
+            platform = FakeRecordingPlatform(backgroundLocation = true),
+            counter = listOf(StepCounterReading(T0 + 300, 10_242.0)), bootedAtMillis = T0 - 3_600_000,
+            steps = (1..90).map { StepEvent(T0 + it * 333L) }, // still running at 180 spm after the resume
+            analyzer = FakeRunAnalyzer { DefaultRunAnalyzer(DefaultRunNamer()).analyze(it) },
+        )
+        val runId = h.seedRunWithCounterAnchor()
+        h.controller.checkForInterruptedRun()
+        advanceTimeBy(20_000)
+        val gap = h.graph(runId).sensorSamples.single { it.type == SensorType.RESUME_GAP }
+        assertThat(gap.timeMillis).isEqualTo(T0)
+        assertThat(gap.value).isWithin(1.0).of(240.0) // less a step already seen after the resume
+        val stride = 1.0 // 3 m/s at 180 spm, learned live from the good stretch
+        val stats = (h.state as RecordingState.Recording).stats
+        assertThat(stats.distanceM).isWithin(20.0).of(59 * 3.0 + 240 * stride + 19 * 3.0)
+        assertThat(h.controller.liveRoute.value!!.points.count { it.stepFilled }).isEqualTo(1)
+        stop(h)
+        // The saved run bridges the gap the same way.
+        val saved = h.graph(runId).run.stats
+        assertThat(saved.distanceM).isWithin(25.0).of(stats.distanceM)
+        val filtered = h.graph(runId).points.filter { it.kind == PointKind.FILTERED }
+        assertThat(filtered.filter { it.timeMillis > startedAt + 59_000 && it.timeMillis < T0 }.all { it.stepFilled && it.paceSecPerKm == null }).isTrue()
+    }
+
+    @Test fun autoResumeAfterRebootFallsBackToTheStraightLine() = runTest {
+        val startedAt = T0 - 120_000
+        val h = Harness(
+            this, playFixes = straightFixes(150, startMillis = startedAt).drop(120), realMetrics = DefaultLiveMetricsFactory(),
+            platform = FakeRecordingPlatform(backgroundLocation = true),
+            counter = listOf(StepCounterReading(T0 + 300, 260.0)), bootedAtMillis = T0 - 3_600_000,
+        )
+        val runId = h.seedRunWithCounterAnchor()
+        h.controller.checkForInterruptedRun()
+        advanceTimeBy(20_000)
+        assertThat(h.graph(runId).sensorSamples.single { it.type == SensorType.RESUME_GAP }.value).isEqualTo(-1.0)
+        val stats = (h.state as RecordingState.Recording).stats
+        assertThat(stats.distanceM).isWithin(15.0).of(139 * 3.0) // the straight line north
+        assertThat(stats.avgPaceSecPerKm!!).isWithin(25.0).of(1_000 / 3.0)
+    }
+
+    @Test fun newRunsStoreTheBootCounterAsTheNextAnchor() = runTest {
+        val h = Harness(this, counter = listOf(StepCounterReading(T0 + 2_000, 5_000.0), StepCounterReading(T0 + 8_000, 5_020.0)))
+        val runId = warmUpAndStart(h)
+        advanceTimeBy(15_000)
+        stop(h)
+        val boot = h.graph(runId).sensorSamples.filter { it.type == SensorType.STEP_COUNTER_BOOT }
+        assertThat(boot.map { it.value }).containsExactly(5_000.0, 5_020.0).inOrder()
+        assertThat(h.graph(runId).sensorSamples.none { it.type == SensorType.RESUME_GAP }).isTrue()
     }
 }

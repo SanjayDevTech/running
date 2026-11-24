@@ -20,6 +20,6 @@ data class SensorSampleEntity(
     @ColumnInfo(name = "run_id") val runId: String,
     @ColumnInfo(name = "type") val type: SensorType,
     @ColumnInfo(name = "time_millis") val timeMillis: Long,
-    /** STEP_DETECTOR: 1.0; STEP_COUNTER: cumulative count; PRESSURE: hPa. */
+    /** STEP_DETECTOR: 1.0; STEP_COUNTER: cumulative count; PRESSURE: hPa; STEP_COUNTER_BOOT: count since boot; RESUME_GAP: gap steps or -1. */
     @ColumnInfo(name = "value") val value: Double,
 )

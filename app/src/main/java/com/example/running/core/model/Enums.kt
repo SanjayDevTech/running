@@ -27,7 +27,15 @@ enum class PointKind { RAW, FILTERED }
 
 enum class SegmentKind { RUN, WALK, STOP }
 
-enum class SensorType { STEP_DETECTOR, STEP_COUNTER, PRESSURE }
+/**
+ * STEP_DETECTOR: one per step (value 1). STEP_COUNTER: this run's own cumulative count from step-counter
+ * deltas (counter-only devices). PRESSURE: hPa.
+ * STEP_COUNTER_BOOT: raw TYPE_STEP_COUNTER reading (cumulative since boot), stored at most once per flush;
+ * it keeps counting while the app is dead, so it bridges a process-death gap (§3.1).
+ * RESUME_GAP: one per resume after an interruption, at the resume time; value = steps taken during the
+ * gap (from STEP_COUNTER_BOOT), or -1 when unknown (no counter, reboot, counter reset).
+ */
+enum class SensorType { STEP_DETECTOR, STEP_COUNTER, PRESSURE, STEP_COUNTER_BOOT, RESUME_GAP }
 
 enum class ElevationSource { BAROMETER, GPS, NONE }
 

@@ -17,10 +17,17 @@ import java.time.ZoneId
 
 const val T0 = 1_764_040_800_000L
 
-/** Clock that follows the test scheduler's virtual time, so every coroutine sees the same "now". */
-class SchedulerClock(private val scheduler: TestCoroutineScheduler, private val startMillis: Long = T0) : Clock {
+/**
+ * Clock that follows the test scheduler's virtual time, so every coroutine sees the same "now".
+ * [bootedAtMillis] is the wall time elapsed realtime counts from (default: virtual time 0).
+ */
+class SchedulerClock(
+    private val scheduler: TestCoroutineScheduler,
+    private val startMillis: Long = T0,
+    private val bootedAtMillis: Long = startMillis,
+) : Clock {
     override fun nowMillis(): Long = startMillis + scheduler.currentTime
-    override fun elapsedRealtimeNanos(): Long = scheduler.currentTime * 1_000_000L
+    override fun elapsedRealtimeNanos(): Long = (startMillis - bootedAtMillis + scheduler.currentTime) * 1_000_000L
     override fun zoneId(): ZoneId = ZoneId.of("Asia/Kolkata")
 }
 
@@ -54,6 +61,7 @@ class FakeLiveMetrics(private val startedAtMillis: Long) : LiveMetrics {
     val steps = mutableListOf<Pair<StepEvent, Boolean>>()
     val pressure = mutableListOf<PressureSample>()
     val pauseChanges = mutableListOf<Pair<Boolean, Long>>()
+    val resumeGaps = mutableListOf<Pair<Long, Double?>>()
     var distance = 0.0
         private set
     private var last: LocationFix? = null
@@ -80,6 +88,10 @@ class FakeLiveMetrics(private val startedAtMillis: Long) : LiveMetrics {
     override fun onPauseChanged(paused: Boolean, atMillis: Long) {
         pauseChanges += paused to atMillis
         if (paused) pausedSince = atMillis else pausedSince?.let { pausedTotal += atMillis - it; pausedSince = null }
+    }
+
+    override fun onResumeGap(atMillis: Long, steps: Double?) {
+        resumeGaps += atMillis to steps
     }
 
     override fun snapshot(nowMillis: Long): LiveStats {

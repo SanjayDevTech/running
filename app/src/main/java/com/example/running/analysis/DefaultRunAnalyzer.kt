@@ -30,6 +30,11 @@ import kotlin.math.roundToLong
  *    accuracy is worse than ~20 m or fixes are missing, flagged `stepFilled` (drawn dashed).
  * 5. Walk/run labelling from cadence + speed, merged into segments; type from the walk share.
  * 6. Elevation (barometer, else smoothed GPS), splits, best efforts on moving time, calories.
+ *
+ * Resume gaps (RESUME_GAP samples: the process died and recording resumed) bridge the stretch from the
+ * last fix before to the first fix after: step distance from the step counter when known, else the
+ * straight line. Either way it is drawn dashed (`stepFilled`) and its inserted points carry no pace, so
+ * the pace chart breaks there; its time is moving unless the gap shows standing still.
  */
 internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
 
@@ -54,6 +59,10 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         var dist = 0.0
         var steps = 0.0
         var gait = Gait.RUN
+        /** Spans a resume (process-death) gap. */
+        var resumeGap = false
+        /** For a resume gap: the step counter gave the steps taken during it. */
+        var gapStepsKnown = false
     }
 
     override fun analyze(input: AnalysisInput): RunAnalysis {
@@ -63,6 +72,7 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         val stepTimeline = StepTimeline.from(input.sensorSamples, pauses)
         val hasSteps = stepTimeline.hasData
         val profile = input.profile
+        val resumeGaps = input.sensorSamples.filter { it.type == SensorType.RESUME_GAP }
 
         val base = acceptFixes(input.rawPoints, pauses)
         val n = base.size
@@ -86,7 +96,14 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
             it.gap = dt > AnalysisTuning.GAP_MILLIS
             it.weak = max(a.acc, b.acc) > AnalysisTuning.WEAK_ACCURACY_M
             it.steps = if (hasSteps) stepTimeline.stepsBetween(a.t, b.t) else 0.0
-            it.stopped = if (it.gap) {
+            val gapMarkers = resumeGaps.filter { m -> m.timeMillis > a.t && m.timeMillis <= b.t }
+            it.resumeGap = gapMarkers.isNotEmpty()
+            it.gapStepsKnown = it.resumeGap && hasSteps && gapMarkers.all { m -> m.value >= 0.0 }
+            it.stopped = if (it.resumeGap) {
+                // Missing step events say nothing here (the app was dead): without counter steps use speed.
+                if (it.gapStepsKnown) stepTimeline.cadence(a.t, b.t) < AnalysisTuning.STILL_CADENCE_SPM
+                else straight(a, b) / (dt / 1000.0) < AnalysisTuning.STOP_SPEED_MPS
+            } else if (it.gap) {
                 if (hasSteps) stepTimeline.cadence(a.t, b.t) < AnalysisTuning.STILL_CADENCE_SPM
                 else straight(a, b) / (dt / 1000.0) < AnalysisTuning.STOP_SPEED_MPS
             } else {
@@ -101,7 +118,7 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         for (i in 1 until n) {
             val it = iv[i]
             if (it.excluded || it.stopped) continue
-            it.fill = canFill && (it.gap || it.weak)
+            it.fill = if (it.resumeGap) it.gapStepsKnown else canFill && (it.gap || it.weak)
             if (!it.fill) it.dist = gpsDistance(base[i - 1], base[i], it.gap)
             val dt = base[i].t - base[i - 1].t
             val cadence = if (hasSteps) stepTimeline.cadenceAround((base[i - 1].t + base[i].t) / 2, AnalysisTuning.GAIT_HALF_WINDOW_MILLIS) else null
@@ -170,10 +187,11 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         )
 
         // ---- per-point output ----
+        val gapBarrier = BooleanArray(out.size) { out[it].gapInterval }.takeIf { b -> b.any { it } }
         val filtered = out.mapIndexed { i, o ->
-            val speed = tl.windowSpeed(i, AnalysisTuning.PACE_HALF_WINDOW_MILLIS)
+            val speed = tl.windowSpeed(i, AnalysisTuning.PACE_HALF_WINDOW_MILLIS, barrier = gapBarrier)
             val kind = o.kind ?: out.getOrNull(i + 1)?.kind ?: SegmentKind.RUN
-            val pace = if (o.kind == SegmentKind.STOP || speed == null) null else paceSecPerKm(speed)
+            val pace = if (o.kind == SegmentKind.STOP || o.noPace || speed == null) null else paceSecPerKm(speed)
             TrackPoint(
                 runId = input.runId, kind = PointKind.FILTERED,
                 engine = o.raw?.engine, isPrimary = true,
@@ -181,7 +199,7 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
                 lat = o.lat, lon = o.lon,
                 altitudeM = o.raw?.altitudeM, mslAltitudeM = o.raw?.mslAltitudeM,
                 horizontalAccuracyM = o.raw?.horizontalAccuracyM, verticalAccuracyM = o.raw?.verticalAccuracyM,
-                speedMps = if (o.kind == SegmentKind.STOP) 0f else speed?.toFloat(),
+                speedMps = if (o.kind == SegmentKind.STOP) 0f else if (o.noPace) null else speed?.toFloat(),
                 speedAccuracyMps = o.raw?.speedAccuracyMps, bearingDeg = o.raw?.bearingDeg,
                 paused = false, stepFilled = o.stepFilled, distanceM = tl.distance[i],
                 elevationM = elevation.values?.get(i), paceSecPerKm = pace, segmentKind = kind,
@@ -454,6 +472,10 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
     private class Out(
         val t: Long, val lat: Double, val lon: Double, val raw: TrackPoint?,
         val kind: SegmentKind?, val dist: Double, val steps: Double, val stepFilled: Boolean,
+        /** Inside a resume gap: no pace (the pace chart breaks here). */
+        val noPace: Boolean = false,
+        /** The interval ending here belongs to a resume gap (pace windows stop at it). */
+        val gapInterval: Boolean = noPace,
     )
 
     private fun expand(base: List<Base>, iv: Array<Interval>, projection: LocalProjection?, steps: StepTimeline): List<Out> {
@@ -469,22 +491,25 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
                 else -> it.gait.toSegmentKind()
             }
             val dist = if (it.excluded || it.stopped) 0.0 else it.dist
-            if (i > 0 && it.fill && it.gap) {
-                // Insert evenly timed points across the gap; distance follows the steps taken.
+            val resumeGap = it.resumeGap && kind != null && kind != SegmentKind.STOP
+            if (i > 0 && (it.fill && it.gap || resumeGap)) {
+                // Insert evenly timed points across the gap; distance follows the steps taken (time
+                // when a resume gap has no step data). A resume gap gets at least one point, without pace.
                 val a = base[i - 1]
                 val dt = b.t - a.t
-                val count = (dt / AnalysisTuning.FILL_POINT_SPACING_MILLIS).toInt() - 1
+                val count = ((dt / AnalysisTuning.FILL_POINT_SPACING_MILLIS).toInt() - 1).coerceAtLeast(if (resumeGap) 1 else 0)
+                val byTime = it.steps <= 0 || (resumeGap && !it.gapStepsKnown)
                 var prevT = a.t
                 var prevFrac = 0.0
                 for (k in 1..count) {
                     val t = a.t + dt * k / (count + 1)
-                    val frac = if (it.steps > 0) steps.stepsBetween(a.t, t) / it.steps else k.toDouble() / (count + 1)
+                    val frac = if (byTime) k.toDouble() / (count + 1) else steps.stepsBetween(a.t, t) / it.steps
                     val g = projection.toGeo(a.east + (b.east - a.east) * frac, a.north + (b.north - a.north) * frac)
-                    out += Out(t, g.lat, g.lon, null, kind, dist * (frac - prevFrac), steps.stepsBetween(prevT, t), true)
+                    out += Out(t, g.lat, g.lon, null, kind, dist * (frac - prevFrac), steps.stepsBetween(prevT, t), true, noPace = resumeGap)
                     prevT = t
                     prevFrac = frac
                 }
-                out += Out(b.t, geo.lat, geo.lon, b.raw, kind, dist * (1 - prevFrac), steps.stepsBetween(prevT, b.t), true)
+                out += Out(b.t, geo.lat, geo.lon, b.raw, kind, dist * (1 - prevFrac), steps.stepsBetween(prevT, b.t), true, gapInterval = resumeGap)
             } else {
                 out += Out(b.t, geo.lat, geo.lon, b.raw, kind, dist, if (kind == null) 0.0 else it.steps, it.fill && kind != SegmentKind.STOP)
             }

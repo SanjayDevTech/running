@@ -8,6 +8,7 @@ import com.example.running.core.model.SegmentKind
 import com.example.running.core.model.SeriesPoint
 import com.example.running.core.model.Split
 import com.example.running.ui.components.charts.ChartPoint
+import com.example.running.ui.components.charts.splitAtBreaks
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
@@ -80,5 +81,17 @@ class RunDetailMapperTest {
             listOf(SeriesPoint(0.1, 300.0), SeriesPoint(0.2, 5000.0), SeriesPoint(0.3, Double.NaN), SeriesPoint(0.4, 310.0)),
         )
         assertThat(pts.map { it.y }).containsExactly(300.0, 310.0).inOrder()
+    }
+
+    @Test fun paceChartKeepsBreaksWhenThinning() {
+        // 0–0.5 km at 5:00, a gap, 0.7–1.2 km at 6:00; heavy thinning must not average across the gap.
+        val series = (0..500).map { SeriesPoint(it / 1_000.0, 300.0) } + (700..1_200).map { SeriesPoint(it / 1_000.0, 360.0) }
+        val pts = paceChartPoints(series, maxPoints = 20, breaksKm = listOf(0.6))
+        val sections = splitAtBreaks(pts, listOf(0.6))
+        assertThat(sections).hasSize(2)
+        assertThat(sections[0].all { it.y == 300.0 && it.x < 0.6 }).isTrue()
+        assertThat(sections[1].all { it.y == 360.0 && it.x > 0.6 }).isTrue()
+        assertThat(pts.size).isAtMost(22)
+        assertThat(splitAtBreaks(pts, emptyList())).hasSize(1)
     }
 }

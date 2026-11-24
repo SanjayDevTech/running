@@ -179,6 +179,7 @@ internal class DefaultRecordingController(
             stepsAreDetectorEvents = stepSource.hasStepDetector,
             metrics = liveMetricsFactory.create(profile, startedAt),
             repository = repository,
+            hasStepCounter = stepSource.hasStepCounter,
         )
         startSensors()
         ensureTicker()
@@ -198,7 +199,7 @@ internal class DefaultRecordingController(
         stopLocation()
         stopTicker()
         _state.value = RecordingState.Saving(s.runId)
-        runCatching { s.flush(endedAt) }
+        runCatching { s.flush(endedAt, final = true) }
         saveAndFinish(s.runId, endedAt)
     }
 
@@ -292,13 +293,17 @@ internal class DefaultRecordingController(
         val paused = replayInto(metrics, input)
         val lastRecorded = lastRecordedMillis(input)
         val now = clock.nowMillis()
-        if (userConfirmed && !paused && now - lastRecorded >= config.manualResumeGapPauseMillis) {
+        val gapAsPause = userConfirmed && !paused && now - lastRecorded >= config.manualResumeGapPauseMillis
+        if (gapAsPause) {
             // Nothing was recorded during the gap and the user may have stopped long ago: keep it out of moving time.
             repository.startPause(run.id, lastRecorded)
             repository.endPause(run.id, now)
             metrics.onPauseChanged(true, lastRecorded)
             metrics.onPauseChanged(false, now)
         }
+        // Otherwise the gap is bridged (step counter distance, else straight line): see RecordingSession.
+        val resumeGap = if (paused || gapAsPause) null
+        else resumeGapAnchor(input, now, bootedAtMillis = now - clock.elapsedRealtimeNanos() / 1_000_000)
         session = RecordingSession(
             runId = run.id,
             startedAtMillis = run.startedAtMillis,
@@ -308,7 +313,10 @@ internal class DefaultRecordingController(
             repository = repository,
             initiallyPaused = paused,
             initialStepCount = input.sensorSamples.filter { it.type == SensorType.STEP_COUNTER }.maxOfOrNull { it.value } ?: 0.0,
-            notBeforeMillis = lastRecorded,
+            // A bridged gap ends at the resume: fixes cached from the dead time would land inside it.
+            notBeforeMillis = if (resumeGap != null) now else lastRecorded,
+            hasStepCounter = stepSource.hasStepCounter,
+            resumeGap = resumeGap,
         )
         _liveRoute.value = metrics.acceptedRoute()
         startLocation(run.engineMode, run.devDualEngine)
@@ -371,6 +379,7 @@ internal class DefaultRecordingController(
         sensorJob?.cancel()
         sensorJob = scope.launch(serial) {
             launch { stepSource.steps().catch { }.collect { session?.onSteps(it) } }
+            if (stepSource.hasStepCounter) launch { stepSource.counterReadings().catch { }.collect { session?.onCounterReading(it) } }
             if (pressureSource.isAvailable) launch { pressureSource.pressure().catch { }.collect { session?.onPressure(it) } }
         }
     }

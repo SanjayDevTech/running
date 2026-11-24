@@ -46,6 +46,7 @@ import com.patrykandpatrick.vico.compose.common.Insets
 /**
  * The app's one line chart (Vico). D and E use this; nobody else sets up Vico.
  * [invertY] plots -y so that a smaller value (faster pace) sits higher; formatters still get the real y.
+ * [breaks] are x values where the line is interrupted (drawn as separate series in the same style).
  */
 @Composable
 fun AppLineChart(
@@ -62,6 +63,7 @@ fun AppLineChart(
     comparison: List<ChartPoint>? = null,
     minXLabelStep: Double = 0.0,
     minYStep: Double = 0.0,
+    breaks: List<Double> = emptyList(),
 ) {
     if (points.size < 2) return
     val sign = if (invertY) -1.0 else 1.0
@@ -71,13 +73,14 @@ fun AppLineChart(
     val main = remember(points, grid) { grid.snap(points) }
     val second = remember(comparison, grid) { comparison?.let(grid::snap)?.takeIf { it.size >= 2 } }
     if (main.size < 2) return
+    val sections = remember(main, breaks) { splitAtBreaks(main, breaks) }
     val yPlan = remember(main, second, sign, minYStep) { YAxisPlan.of(main + second.orEmpty(), sign, minYStep) }
     val yBounds = yPlan.bounds
     val producer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(main, second, invertY) {
+    LaunchedEffect(sections, second, invertY) {
         producer.runTransaction {
             lineModel {
-                series(main.map { it.x }, main.map { it.y * sign })
+                sections.forEach { s -> series(s.map { it.x }, s.map { it.y * sign }) }
                 second?.let { c -> series(c.map { it.x }, c.map { it.y * sign }) }
             }
         }
@@ -101,7 +104,7 @@ fun AppLineChart(
         fill = remember { LineCartesianLayer.LineFill.single(Fill(TextTertiary)) },
         stroke = remember { LineCartesianLayer.LineStroke.Continuous(thickness = 1.5.dp) },
     )
-    val lines = if (second != null) listOf(mainLine, comparisonLine) else listOf(mainLine)
+    val lines = List(sections.size) { mainLine } + listOfNotNull(comparisonLine.takeIf { second != null })
 
     val axisLabel = rememberAxisLabelComponent(style = AppText.label.copy(color = TextSecondary, fontSize = AppText.eyebrow.fontSize))
     val guideline = rememberAxisGuidelineComponent(fill = Fill(Hairline))

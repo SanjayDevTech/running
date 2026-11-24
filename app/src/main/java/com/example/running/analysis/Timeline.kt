@@ -30,12 +30,16 @@ internal class Timeline(
     fun intervalDistance(i: Int) = distance[i] - distance[i - 1]
     fun intervalMoving(i: Int) = moving[i] - moving[i - 1]
 
-    /** Speed over a centered ±[halfWindowMillis] window (distance / moving time), null when not moving enough. */
-    fun windowSpeed(i: Int, halfWindowMillis: Long, minMovingMillis: Double = 3_000.0): Double? {
+    /**
+     * Speed over a centered ±[halfWindowMillis] window (distance / moving time), null when not moving enough.
+     * The window never takes in an interval flagged in [barrier] (a resume gap, whose distance is not
+     * measured at GPS resolution), so points next to it get the pace of their own side only.
+     */
+    fun windowSpeed(i: Int, halfWindowMillis: Long, minMovingMillis: Double = 3_000.0, barrier: BooleanArray? = null): Double? {
         var lo = i
         var hi = i
-        while (lo > 0 && time[i] - time[lo - 1] <= halfWindowMillis) lo--
-        while (hi < size - 1 && time[hi + 1] - time[i] <= halfWindowMillis) hi++
+        while (lo > 0 && time[i] - time[lo - 1] <= halfWindowMillis && barrier?.get(lo) != true) lo--
+        while (hi < size - 1 && time[hi + 1] - time[i] <= halfWindowMillis && barrier?.get(hi + 1) != true) hi++
         val m = moving[hi] - moving[lo]
         if (m < minMovingMillis) return null
         return (distance[hi] - distance[lo]) / (m / 1000.0)

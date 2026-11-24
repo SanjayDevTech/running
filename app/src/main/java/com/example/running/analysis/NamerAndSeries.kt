@@ -30,22 +30,58 @@ internal class DefaultRunNamer : RunNamer {
 
 /**
  * Chart series over distance. Pace excludes stops and is smoothed and downsampled to at most
- * [maxPoints] distance buckets; elevation likewise. Cadence needs the run's step samples, which the
- * run's step samples ([sensorSamples]); without them it is empty.
+ * [maxPoints] distance buckets; elevation likewise. Cadence needs the run's step samples
+ * ([sensorSamples]); without them it is empty. Moving step-filled points without pace lie inside a
+ * resume gap (the app was dead): the pace series breaks there ([RunSeries.paceBreaksKm]) instead of
+ * bridging it, and each side is bucketed and smoothed on its own.
  */
 internal class DefaultRunSeriesBuilder(private val maxPoints: Int = 300) : RunSeriesBuilder {
 
     override fun build(filteredPoints: List<TrackPoint>, sensorSamples: List<SensorSample>): RunSeries {
         val pts = filteredPoints.filter { it.distanceM != null && !it.paused }.sortedBy { it.timeMillis }
-        val pace = bucket(pts.filter { it.segmentKind != SegmentKind.STOP && it.paceSecPerKm != null }) { it.paceSecPerKm!! }
+        val (sections, breaks) = paceSections(pts.filter { it.segmentKind != SegmentKind.STOP })
+        val paceCount = sections.sumOf { it.size }
+        val paceTotal = sections.lastOrNull()?.lastOrNull()?.distanceM ?: 0.0
+        val pace = sections.flatMap { section ->
+            smooth(bucket(section, paceCount, paceTotal) { it.paceSecPerKm!! })
+        }
         val elevation = bucket(pts.filter { it.elevationM != null }) { it.elevationM!! }
-        return RunSeries(pace = smooth(pace), elevation = elevation, cadence = cadence(pts, sensorSamples))
+        return RunSeries(pace = pace, elevation = elevation, cadence = cadence(pts, sensorSamples), paceBreaksKm = breaks)
     }
 
-    private fun bucket(points: List<TrackPoint>, value: (TrackPoint) -> Double): List<SeriesPoint> {
+    /** Points with pace, split where a resume gap (step-filled, no pace) lies; breaks at the gap midpoints (km). */
+    private fun paceSections(moving: List<TrackPoint>): Pair<List<List<TrackPoint>>, List<Double>> {
+        val sections = mutableListOf<MutableList<TrackPoint>>(mutableListOf())
+        val breaks = mutableListOf<Double>()
+        var inGap = false
+        for (p in moving) {
+            if (p.paceSecPerKm == null) {
+                if (p.stepFilled) inGap = true
+                continue
+            }
+            val before = sections.last().lastOrNull()
+            if (inGap && before != null) {
+                breaks += (before.distanceM!! + p.distanceM!!) / 2 / METERS_PER_KM
+                sections += mutableListOf<TrackPoint>()
+            }
+            inGap = false
+            sections.last() += p
+        }
+        return sections.filter { it.isNotEmpty() } to breaks
+    }
+
+    /**
+     * Averages [points] into distance buckets of total / [maxPoints]; [count] and [total] describe the whole
+     * series when [points] is one section of it, so every section uses the same bucket width.
+     */
+    private fun bucket(
+        points: List<TrackPoint>,
+        count: Int = points.size,
+        total: Double = points.lastOrNull()?.distanceM ?: 0.0,
+        value: (TrackPoint) -> Double,
+    ): List<SeriesPoint> {
         if (points.isEmpty()) return emptyList()
-        val total = points.last().distanceM!!
-        if (points.size <= maxPoints || total <= 0) return points.map { SeriesPoint(it.distanceM!! / METERS_PER_KM, value(it)) }
+        if (count <= maxPoints || total <= 0) return points.map { SeriesPoint(it.distanceM!! / METERS_PER_KM, value(it)) }
         val width = total / maxPoints
         val out = mutableListOf<SeriesPoint>()
         var i = 0

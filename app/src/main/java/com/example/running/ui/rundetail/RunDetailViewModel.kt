@@ -51,8 +51,9 @@ internal class RunDetailViewModel(
         retryOfflineArea(route)
         RunGeometry(
             route = route,
-            pace = paceChartPoints(series.pace),
+            pace = paceChartPoints(series.pace, breaksKm = series.paceBreaksKm),
             elevation = elevationChartPoints(series.elevation),
+            paceBreaksKm = series.paceBreaksKm,
         )
     }
 

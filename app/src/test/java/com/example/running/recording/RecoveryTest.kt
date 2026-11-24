@@ -65,4 +65,52 @@ class RecoveryTest {
             .isEqualTo(T0 + 12_000)
         assertThat(lastRecordedMillis(input(pauses = listOf(PauseInterval(T0 + 15_000, OPEN_END_MILLIS))))).isEqualTo(T0 + 15_000)
     }
+
+    @Test fun resumeGapsAreReplayedBeforeFixesAtTheSameTime() {
+        val metrics = FakeLiveMetrics(T0)
+        replayInto(
+            metrics,
+            input(
+                samples = listOf(
+                    SensorSample(SensorType.STEP_COUNTER_BOOT, T0 + 1_000, 12_345.0),
+                    SensorSample(SensorType.RESUME_GAP, T0 + 4_000, 120.0),
+                    SensorSample(SensorType.RESUME_GAP, T0 + 8_000, -1.0),
+                ),
+            ),
+        )
+        assertThat(metrics.resumeGaps).containsExactly(T0 + 4_000 to 120.0, T0 + 8_000 to null).inOrder()
+        assertThat(metrics.steps).isEmpty() // the boot counter is only an anchor
+    }
+
+    private fun anchorInput() = input(
+        samples = listOf(
+            SensorSample(SensorType.STEP_DETECTOR, T0 + 1_000, 1.0),
+            SensorSample(SensorType.STEP_COUNTER_BOOT, T0 + 1_500, 10_000.0),
+            SensorSample(SensorType.STEP_DETECTOR, T0 + 2_000, 1.0),
+            SensorSample(SensorType.STEP_DETECTOR, T0 + 2_400, 1.0),
+        ),
+    )
+
+    @Test fun anchorIsTheLastBootCounterAndCountsStepsRecordedAfterIt() {
+        val a = resumeGapAnchor(anchorInput(), resumedAtMillis = T0 + 62_000, bootedAtMillis = T0 - 3_600_000)
+        assertThat(a.counterAtAnchor).isEqualTo(10_000.0)
+        assertThat(a.anchorMillis).isEqualTo(T0 + 1_500)
+        assertThat(a.stepsRecordedSinceAnchor).isEqualTo(2.0)
+        assertThat(a.unusable()).isFalse()
+        assertThat(resumeGapAnchor(input(), T0 + 62_000, T0 - 3_600_000).unusable()).isTrue() // no counter stored
+    }
+
+    @Test fun gapStepsComeFromTheCounterWithRebootAndGlitchGuards() {
+        val a = resumeGapAnchor(anchorInput(), resumedAtMillis = T0 + 62_000, bootedAtMillis = T0 - 3_600_000)
+        // 10 000 at the anchor, 2 steps already recorded, 3 recorded after the resume: 175 in the gap.
+        assertThat(resumeGapSteps(a, 10_180.0, T0 + 62_500, stepsSinceResume = 3.0)).isEqualTo(175.0)
+        // Counter went backwards: it was reset (reboot).
+        assertThat(resumeGapSteps(a, 150.0, T0 + 62_500, 0.0)).isNull()
+        // Rebooted after the anchor (the counter restarted and may have climbed past it).
+        assertThat(resumeGapSteps(a.copy(bootedAtMillis = T0 + 30_000), 10_180.0, T0 + 62_500, 0.0)).isNull()
+        // 5 000 steps in a minute is not running.
+        assertThat(resumeGapSteps(a, 15_000.0, T0 + 62_500, 0.0)).isNull()
+        // Standing still: zero steps is valid data.
+        assertThat(resumeGapSteps(a, 10_002.0, T0 + 62_500, 0.0)).isEqualTo(0.0)
+    }
 }

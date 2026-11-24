@@ -7,7 +7,9 @@ import com.example.running.core.model.SensorType
 /**
  * Cumulative step count as a function of time, built from STEP_DETECTOR events (1 per step) or
  * STEP_COUNTER samples (cumulative; resets tolerated). Linear between samples. Steps taken while
- * paused are excluded by [stepsBetween] when pauses are given.
+ * paused are excluded by [stepsBetween] when pauses are given. RESUME_GAP samples with a known step
+ * count (taken while the app was dead) are added at their time, so they ramp in linearly from the last
+ * step before the interruption.
  */
 internal class StepTimeline private constructor(
     private val times: LongArray,
@@ -60,22 +62,38 @@ internal class StepTimeline private constructor(
         fun from(samples: List<SensorSample>, pauses: List<PauseInterval> = emptyList()): StepTimeline {
             val detector = samples.filter { it.type == SensorType.STEP_DETECTOR }.sortedBy { it.timeMillis }
             val counter = samples.filter { it.type == SensorType.STEP_COUNTER }.sortedBy { it.timeMillis }
-            val fromCounter = counterTimeline(counter)
+            val gaps = samples.filter { it.type == SensorType.RESUME_GAP && it.value > 0.0 }
+            val fromCounter = counterTimeline(counter)?.let { withGaps(it.first, it.second, gaps) }
             val counterTotal = fromCounter?.second?.lastOrNull() ?: 0.0
             // Detector events have exact timing; prefer them unless they clearly missed steps.
             val useDetector = detector.size >= 2 && detector.size >= 0.9 * counterTotal
             return when {
                 useDetector -> {
-                    val t = LongArray(detector.size + 1)
-                    val c = DoubleArray(detector.size + 1)
+                    val events = (detector + gaps).sortedBy { it.timeMillis }
+                    val t = LongArray(events.size + 1)
+                    val c = DoubleArray(events.size + 1)
                     // A detector event marks a completed step; anchor zero one step-period earlier.
                     t[0] = detector[0].timeMillis - 500
-                    detector.forEachIndexed { i, s -> t[i + 1] = s.timeMillis; c[i + 1] = c[i] + s.value.coerceAtLeast(1.0) }
+                    events.forEachIndexed { i, s -> t[i + 1] = s.timeMillis; c[i + 1] = c[i] + s.value.coerceAtLeast(1.0) }
                     StepTimeline(t, c, pauses)
                 }
                 fromCounter != null -> StepTimeline(fromCounter.first, fromCounter.second, pauses)
                 else -> EMPTY
             }
+        }
+
+        /** Adds each gap's steps at its time to a cumulative timeline. */
+        private fun withGaps(times: LongArray, cumulative: DoubleArray, gaps: List<SensorSample>): Pair<LongArray, DoubleArray> {
+            if (gaps.isEmpty()) return times to cumulative
+            val inc = ArrayList<Pair<Long, Double>>(times.size + gaps.size)
+            for (i in times.indices) inc += times[i] to (if (i == 0) 0.0 else cumulative[i] - cumulative[i - 1])
+            gaps.forEach { inc += it.timeMillis to it.value }
+            inc.sortBy { it.first }
+            val t = LongArray(inc.size) { inc[it].first }
+            val c = DoubleArray(inc.size)
+            c[0] = inc[0].second
+            for (i in 1 until inc.size) c[i] = c[i - 1] + inc[i].second
+            return t to c
         }
 
         private fun counterTimeline(counter: List<SensorSample>): Pair<LongArray, DoubleArray>? {

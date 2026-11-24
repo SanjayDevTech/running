@@ -37,4 +37,7 @@ data class LocationFix(
 /** STEP_DETECTOR (count = 1) or a delta from STEP_COUNTER. */
 data class StepEvent(val timeMillis: Long, val count: Int = 1)
 
+/** Raw TYPE_STEP_COUNTER reading: steps since the device booted (keeps counting while the app is dead). */
+data class StepCounterReading(val timeMillis: Long, val stepsSinceBoot: Double)
+
 data class PressureSample(val timeMillis: Long, val hPa: Double)

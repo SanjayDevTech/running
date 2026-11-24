@@ -25,7 +25,9 @@ internal class DefaultLiveMetricsFactory : LiveMetricsFactory {
 /**
  * Streaming version of the analysis for the Record screen and notification: same pre-filter,
  * forward Kalman (no smoother), step-based stationary gating, step distance while GPS is weak
- * (> 20 m) or missing, live moving time, pace, cadence, calories and elevation gain.
+ * (> 20 m) or missing, live moving time, pace, cadence, calories and elevation gain. A resume gap
+ * ([onResumeGap]) is bridged like the analyzer does: step distance when the counter gave the gap's
+ * steps, else the straight line; dashed on the route, no pace, moving time unless standing still.
  * Thread-safe: every entry point is synchronized (fixes, steps and snapshots may come from
  * different threads).
  */
@@ -33,6 +35,9 @@ internal class DefaultLiveMetrics(
     private val profile: RunnerProfile,
     private val startedAtMillis: Long,
 ) : LiveMetrics {
+
+    /** A resume gap waiting for its closing fix. */
+    private class OpenGap(val steps: Double?, val fromMillis: Long, val movingBefore: Long)
 
     private class LastFix(val t: Long, val east: Double, val north: Double, val acc: Double, val doppler: Double?, val dopplerOk: Boolean)
     private data class Sample(val t: Long, val distance: Double, val moving: Long)
@@ -53,6 +58,8 @@ internal class DefaultLiveMetrics(
     private var stepSensorSeen = false
     private var totalSteps = 0
     private val stepEvents = ArrayDeque<StepEvent>()
+
+    private var openGap: OpenGap? = null
 
     private var movingMillis = 0L
     private var lastEventTime: Long? = null
@@ -103,7 +110,7 @@ internal class DefaultLiveMetrics(
         val weak = acc > AnalysisTuning.WEAK_ACCURACY_M
         val gpsSpeed = if (dopplerOk) doppler!! else hypot(k.vEast, k.vNorth)
         val stepping = stepSensorSeen && recentCadence(fix.timeMillis, AnalysisTuning.LIVE_STILL_NO_STEPS_MILLIS) >= AnalysisTuning.STILL_CADENCE_SPM
-        val stationary = when {
+        val gpsStationary = when {
             stepSensorSeen && !stepping -> weak || gpsSpeed < AnalysisTuning.GPS_MOVING_WITHOUT_STEPS_MPS
             stepSensorSeen -> !weak && gpsSpeed < AnalysisTuning.STOP_SPEED_MPS
             doppler != null -> doppler < AnalysisTuning.STILL_DOPPLER_MPS
@@ -113,8 +120,25 @@ internal class DefaultLiveMetrics(
 
         var stepFilled = false
         var increment = 0.0
-        val gait = currentGait(fix.timeMillis, gpsSpeed)
-        if (prev != null) {
+        var gait = currentGait(fix.timeMillis, gpsSpeed)
+        var stationary = gpsStationary
+        val gap = openGap
+        openGap = null
+        if (gap != null && prev != null) {
+            // Resume gap: nothing was recorded between prev and this fix (the app was dead).
+            val dt = (fix.timeMillis - prev.t).coerceAtLeast(1)
+            val straight = hypot(k.east - prev.east, k.north - prev.north)
+            val chordSpeed = straight / (dt / 1000.0)
+            val cadence = gap.steps?.let { pendingSteps * 60_000.0 / dt }
+            gait = GaitClassifier.classify(cadence, chordSpeed)
+            stationary = if (cadence != null) cadence < AnalysisTuning.STILL_CADENCE_SPM else chordSpeed < AnalysisTuning.STOP_SPEED_MPS
+            if (!stationary) {
+                val target = if (gap.steps != null) max(pendingSteps * stride(gait), (straight - acc - prev.acc).coerceAtLeast(0.0)) else straight
+                increment = (target - provisional).coerceAtLeast(0.0)
+            }
+            movingMillis = gap.movingBefore + if (stationary) 0L else (fix.timeMillis - gap.fromMillis).coerceAtLeast(0)
+            stepFilled = true
+        } else if (prev != null) {
             val dt = fix.timeMillis - prev.t
             val straight = hypot(k.east - prev.east, k.north - prev.north)
             val fill = stepSensorSeen && (weak || prev.acc > AnalysisTuning.WEAK_ACCURACY_M || dt > AnalysisTuning.GAP_MILLIS)
@@ -140,7 +164,7 @@ internal class DefaultLiveMetrics(
         // A gap with no events at all (GPS outage without steps, or the process restarting) accrued only
         // LIVE_MAX_ACCRUAL_MILLIS above, yet its straight-line distance is counted. Like the analyzer, a
         // gap covered at moving speed is moving time; otherwise pace jumps to ~1 min/km after the gap.
-        if (increment > 0 && sinceLastEvent > AnalysisTuning.LIVE_MAX_ACCRUAL_MILLIS &&
+        if (gap == null && increment > 0 && sinceLastEvent > AnalysisTuning.LIVE_MAX_ACCRUAL_MILLIS &&
             increment / (sinceLastEvent / 1000.0) >= AnalysisTuning.STOP_SPEED_MPS
         ) {
             movingMillis += sinceLastEvent - accrued
@@ -153,7 +177,7 @@ internal class DefaultLiveMetrics(
         last = LastFix(fix.timeMillis, k.east, k.north, acc, doppler, dopplerOk)
         history.addLast(Sample(fix.timeMillis, distance, movingMillis))
         while (history.size > 2 && fix.timeMillis - history.first().t > AnalysisTuning.LIVE_PACE_WINDOW_MILLIS) history.removeFirst()
-        if (!stationary || route.isEmpty()) {
+        if (!stationary || route.isEmpty() || gap != null) {
             val geo = proj.toGeo(k.east, k.north)
             route += RoutePoint(
                 geo.lat, geo.lon, distance, currentPace(), stepFilled,
@@ -210,6 +234,28 @@ internal class DefaultLiveMetrics(
             movingNow = false
         }
         breakContinuity()
+    }
+
+    @Synchronized
+    override fun onResumeGap(atMillis: Long, steps: Double?) {
+        if (paused) return // the gap lies inside a pause: nothing to bridge
+        val known = steps?.takeIf { it >= 0.0 }
+        if (known != null) {
+            stepSensorSeen = true
+            totalSteps += known.toInt()
+            pendingSteps += known
+            last?.let {
+                // Distance follows the gap's steps at once; the closing fix reconciles it.
+                val cadence = known * 60_000.0 / (atMillis - it.t).coerceAtLeast(1)
+                val gait = GaitClassifier.classify(cadence, 0.0)
+                val add = (pendingSteps * stride(gait) - provisional).coerceAtLeast(0.0)
+                provisional += add
+                addDistance(add, gait)
+            }
+        }
+        openGap = OpenGap(known, lastEventTime ?: atMillis, movingMillis)
+        movingNow = false
+        history.clear()
     }
 
     @Synchronized

@@ -6,6 +6,7 @@ import com.example.running.core.contracts.StepSource
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
 import com.example.running.core.model.PressureSample
+import com.example.running.core.model.StepCounterReading
 import com.example.running.core.model.StepEvent
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -57,7 +58,20 @@ class FakeStepSource(
     private val events: List<StepEvent>,
     override val hasStepDetector: Boolean = true,
     override val hasStepCounter: Boolean = true,
+    /** Raw since-boot counter readings, emitted like [events] (the first at once, then by time difference). */
+    private val counter: List<StepCounterReading> = emptyList(),
 ) : StepSource {
+    override fun counterReadings(): Flow<StepCounterReading> = flow {
+        if (counter.isEmpty()) awaitCancellation()
+        var last = counter.first().timeMillis
+        for (r in counter) {
+            delay((r.timeMillis - last).coerceAtLeast(0))
+            last = r.timeMillis
+            emit(r)
+        }
+        awaitCancellation()
+    }
+
     override fun steps(): Flow<StepEvent> = flow {
         if (events.isEmpty()) awaitCancellation()
         var last = events.first().timeMillis

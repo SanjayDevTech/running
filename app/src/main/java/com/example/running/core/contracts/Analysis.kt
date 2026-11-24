@@ -24,6 +24,15 @@ interface LiveMetrics {
     fun onSteps(event: StepEvent, paused: Boolean)
     fun onPressure(sample: PressureSample)
     fun onPauseChanged(paused: Boolean, atMillis: Long)
+
+    /**
+     * Recording resumed at [atMillis] after an interruption (process killed) with nothing recorded since
+     * the last stored data. [steps] = steps taken during the gap (step counter), null when unknown. The
+     * stretch up to the next fix is bridged: step distance when known, else the straight line; drawn
+     * dashed (stepFilled) without pace; its time counts as moving unless the gap shows standing still.
+     * Called before any event recorded after the resume.
+     */
+    fun onResumeGap(atMillis: Long, steps: Double?)
     fun snapshot(nowMillis: Long): LiveStats
     /** Live polyline (pace colouring optional). */
     fun acceptedRoute(): MapRoute

@@ -348,7 +348,8 @@ data class SensorSampleEntity(
     @ColumnInfo(name = "run_id") val runId: String,
     @ColumnInfo(name = "type") val type: SensorType,
     @ColumnInfo(name = "time_millis") val timeMillis: Long,
-    @ColumnInfo(name = "value") val value: Double,   // STEP_DETECTOR: 1.0; STEP_COUNTER: cumulative count; PRESSURE: hPa
+    @ColumnInfo(name = "value") val value: Double,   // STEP_DETECTOR: 1.0; STEP_COUNTER: cumulative count; PRESSURE: hPa;
+                                                     // STEP_COUNTER_BOOT: raw count since boot; RESUME_GAP: gap steps or -1
 )
 ```
 
@@ -451,7 +452,7 @@ enum class LocationEngineMode { AUTO, GOOGLE, BUILT_IN }      // user setting; l
 enum class LocationEngine { PLAY, PLATFORM }                  // what actually produced a fix
 enum class PointKind { RAW, FILTERED }
 enum class SegmentKind { RUN, WALK, STOP }
-enum class SensorType { STEP_DETECTOR, STEP_COUNTER, PRESSURE }
+enum class SensorType { STEP_DETECTOR, STEP_COUNTER, PRESSURE, STEP_COUNTER_BOOT, RESUME_GAP }  // last two: §10.7
 enum class ElevationSource { BAROMETER, GPS, NONE }
 enum class Sex { MALE, FEMALE, UNSPECIFIED }
 enum class GpsQuality { NONE, POOR, FAIR, GOOD }              // NONE: no fix; POOR >20 m; FAIR 10–20 m; GOOD <=10 m
@@ -856,6 +857,8 @@ data class BarDatum(val label: String, val value: Double)
     color: Color = Accent, height: Dp = Sizes.chartHeight,
     selectedX: Double? = null, onSelectX: ((Double?) -> Unit)? = null,
     comparison: List<ChartPoint>? = null,                        // secondary series (TextTertiary)
+    minXLabelStep: Double = 0.0, minYStep: Double = 0.0,
+    breaks: List<Double> = emptyList(),                          // x values where the line is interrupted (§10.7)
 )
 @Composable fun AppBarChart(
     bars: List<BarDatum>, modifier: Modifier = Modifier, yFormatter: (Double) -> String,
@@ -1065,7 +1068,8 @@ the background and instead surfaces `NeedsRecoveryDecision` (resume / finish) on
 Automatic resumes are capped at 3 per run (§2.5) and only happen when the last persisted data is at
 most 10 min old (`ControllerConfig.autoResumeMaxGapMillis`); an older interruption (phone died or
 rebooted mid-run, app opened later) always gets the prompt. A resume the user confirms after a gap of 60 s or
-more stores the gap as a pause; finishing an interrupted run uses the last recorded data time as
+more stores the gap as a pause; otherwise (auto-resume, or a confirmed resume within 60 s) the gap is
+bridged from the step counter (§10.7); finishing an interrupted run uses the last recorded data time as
 `endedAtMillis`, not the current time.
 
 ### 3.2 Location + sensor sources — implemented by A
@@ -1082,6 +1086,7 @@ interface StepSource {
     val hasStepDetector: Boolean
     val hasStepCounter: Boolean
     fun steps(): Flow<StepEvent>
+    fun counterReadings(): Flow<StepCounterReading> = emptyFlow()  // raw TYPE_STEP_COUNTER since boot (§10.7)
 }
 interface PressureSource {
     val isAvailable: Boolean
@@ -1125,6 +1130,7 @@ data class RunSeries(
     val pace: List<SeriesPoint>,             // sec/km, smoothed, stops removed
     val elevation: List<SeriesPoint>,        // m
     val cadence: List<SeriesPoint>,          // spm (empty if no step data)
+    val paceBreaksKm: List<Double> = emptyList(),  // pace line breaks inside resume gaps (§10.7)
 )
 
 // core/contracts/Analysis.kt (F0)
@@ -1134,6 +1140,7 @@ interface LiveMetrics {
     fun onSteps(event: StepEvent, paused: Boolean)
     fun onPressure(sample: PressureSample)
     fun onPauseChanged(paused: Boolean, atMillis: Long)
+    fun onResumeGap(atMillis: Long, steps: Double?)    // resumed after a process death; steps from the counter (§10.7)
     fun snapshot(nowMillis: Long): LiveStats
     fun acceptedRoute(): MapRoute            // live polyline (pace colouring optional)
 }
@@ -1847,7 +1854,8 @@ No crashes in logcat. Fixed:
   pace kept after an auto-resume gap).
 The slow (red) chord on the map and the pace-chart dip at the force-stop are the straight line across
 the outage: the replayed route turned a corner while the app was dead, so the chord is shorter than
-the path and its pace slower. That is the recorded data, not a bug.
+the path and its pace slower. (Addressed in §10.7: the gap is now bridged from the step counter, drawn
+dashed and left out of the pace chart.)
 
 ### 10.7 Post-review fixes (2026-11-24)
 
@@ -1858,3 +1866,44 @@ the path and its pace slower. That is the recorded data, not a bug.
 - **Pace colours on steady runs** (`map/RouteGeometry.kt` `PaceNormalizer`): the 5th–95th percentile
   scale is widened to at least ±30 s/km around the median (§3.4), so a 5:40–5:50 run no longer spans
   green to red.
+- **Process-death gaps** (crash / force-stop, then auto-resume or a resume confirmed within 60 s): the
+  stretch from the last stored fix to the first fix after the resume used to be a straight line counted
+  as moving, so a corner made it short, slow (red) and a dip in the pace chart. Now:
+  - *Step counter anchor.* `StepSource.counterReadings()` (A, `sensors/`) streams raw TYPE_STEP_COUNTER
+    values (cumulative since boot, so they keep counting while the app is dead). `RecordingSession`
+    stores the latest one with each flush as a `STEP_COUNTER_BOOT` sensor sample. No new column: two
+    new `SensorType` names in the existing `sensor_samples.type` text column, so no Room migration.
+  - *Gap steps.* `resumeRun` builds a `ResumeGapAnchor` (`recording/Recovery.kt`) from the last
+    `STEP_COUNTER_BOOT` sample and the steps already stored after it. The first counter reading after
+    the resume gives gap steps = counterNow − counterAtAnchor − steps recorded since; no step data
+    (null) when the run stored no anchor, the device has no counter, the device booted after the anchor
+    (`now − elapsedRealtime` > anchor time), the counter went backwards, the cadence would exceed
+    260 spm, or no reading arrives within 5 s (`GAP_COUNTER_WAIT_MILLIS`). The session then writes one
+    `RESUME_GAP` sample at the resume time (value = steps, −1 when unknown) and calls
+    `LiveMetrics.onResumeGap`; until then events are stored but held back from the live metrics, so
+    live and replay (`replayInto`) see the same order. Fixes stamped before the resume are dropped.
+  - *Distance.* Step distance when known: gap steps × stride (the local/learned stride, seeded from
+    height), lower-bounded by the straight line minus both fixes' accuracy (the existing step-fill
+    rule). Straight line only without step data. The analyzer (`StepTimeline` adds the gap's steps at
+    the resume time, ramping in linearly) and `DefaultLiveMetrics` apply the same rule, so splits, best
+    efforts and the saved run use the step distance. Gap steps count in the run's steps.
+  - *Moving time.* The gap is moving unless it shows standing still: cadence below 20 spm when steps
+    are known, else straight-line speed below 0.5 m/s (missing step events say nothing while the app
+    was dead).
+  - *Drawing.* The gap's points are `stepFilled` (grey dashed on the map, no pace colour, live and
+    saved). The analyzer inserts at least one point in the gap; those points have no pace, and
+    `RunSeriesBuilder` breaks the pace series there (`RunSeries.paceBreaksKm`; buckets and smoothing
+    per side). Run detail passes the breaks to `AppLineChart(breaks = …)`, which draws each side as its
+    own series. Convention: a moving FILTERED point with `stepFilled` and no pace lies inside a resume gap.
+    Pace windows (±7 s) of the points on either side stop at the gap (`Timeline.windowSpeed(barrier)`),
+    so the chart does not dip into it; live, the pace history restarts after the gap.
+  - *Limits.* The emulator has no step sensor, so only the straight-line fallback can be exercised
+    there; the step path, whether the Pixel 9 counter reports promptly after re-registration, and
+    counter vs detector agreement are covered only by JVM tests (`analysis/ResumeGapTest`,
+    `RecordingSessionTest`, `RecoveryTest`, `DefaultRecordingControllerTest`) until checked on the phone.
+- **Emulator check** (`Running_Test`, release APK, no step sensor): a replayed 3 m/s square run,
+  force-stopped ~60 s in, kept moving round a corner for 45 s, auto-resumed on app open, then finished.
+  Live and on Run detail the gap is a grey dashed chord, the pace chart breaks over it, moving time
+  keeps it, no crash in logcat. The first few seconds after the resume still read a little slow
+  (~6:20 /km for 3–5 s). The gap no longer feeds those pace windows, so this most likely comes from
+  the first fixes after the restart (not yet investigated); check it on the phone.

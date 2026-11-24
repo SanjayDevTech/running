@@ -8,6 +8,7 @@ import android.hardware.SensorManager
 import com.example.running.core.contracts.PressureSource
 import com.example.running.core.contracts.StepSource
 import com.example.running.core.model.PressureSample
+import com.example.running.core.model.StepCounterReading
 import com.example.running.core.model.StepEvent
 import com.example.running.core.system.Permissions
 import com.example.running.core.util.Clock
@@ -58,6 +59,24 @@ internal class AndroidStepSource(context: Context, private val clock: Clock) : S
                         Sensor.TYPE_STEP_DETECTOR -> trySend(StepEvent(at, 1))
                         Sensor.TYPE_STEP_COUNTER -> deltas.onReading(event.values[0])?.let { trySend(StepEvent(at, it)) }
                     }
+                }
+
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+            }
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            awaitClose { sm.unregisterListener(listener) }
+        }
+    }
+
+    /** Raw TYPE_STEP_COUNTER values (since boot); used to bridge a process-death gap. */
+    override fun counterReadings(): Flow<StepCounterReading> {
+        val sm = app.sensorManager() ?: return emptyFlow()
+        if (!Permissions.hasActivityRecognition(app)) return emptyFlow()
+        val sensor = sm.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return emptyFlow()
+        return callbackFlow {
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    trySend(StepCounterReading(sensorEventWallMillis(event.timestamp, clock), event.values[0].toDouble()))
                 }
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

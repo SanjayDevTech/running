@@ -21,6 +21,7 @@ import com.example.running.core.util.formatPace
 import com.example.running.core.util.formatRunDateTime
 import com.example.running.core.util.paceSecPerKm
 import com.example.running.ui.components.charts.ChartPoint
+import com.example.running.ui.components.charts.splitAtBreaks
 
 /** Pre-formatted headline numbers (everything goes through core/util/Format.kt). */
 internal data class HeadlineUi(
@@ -71,6 +72,8 @@ internal data class RunGeometry(
     val route: MapRoute?,
     val pace: List<ChartPoint>,
     val elevation: List<ChartPoint>,
+    /** Distances (km) where the pace line breaks (recording gaps). */
+    val paceBreaksKm: List<Double> = emptyList(),
 ) {
     companion object { val EMPTY = RunGeometry(null, emptyList(), emptyList()) }
 }
@@ -178,12 +181,17 @@ internal fun downsample(points: List<ChartPoint>, maxPoints: Int = 300): List<Ch
     }
 }
 
-/** Pace chart: drops standing/implausible paces (slower than 30 min/km) before thinning. */
-internal fun paceChartPoints(series: List<SeriesPoint>, maxPoints: Int = 300): List<ChartPoint> =
-    downsample(
-        series.filter { it.value > 0.0 && it.value <= MAX_CHART_PACE_SEC_PER_KM }.map { ChartPoint(it.distanceKm, it.value) },
-        maxPoints,
-    )
+/**
+ * Pace chart: drops standing/implausible paces (slower than 30 min/km) before thinning. With [breaksKm]
+ * each stretch between breaks is thinned on its own, so no averaged point bridges a gap.
+ */
+internal fun paceChartPoints(series: List<SeriesPoint>, maxPoints: Int = 300, breaksKm: List<Double> = emptyList()): List<ChartPoint> {
+    val clean = series.filter { it.value > 0.0 && it.value <= MAX_CHART_PACE_SEC_PER_KM }.map { ChartPoint(it.distanceKm, it.value) }
+    if (breaksKm.isEmpty()) return downsample(clean, maxPoints)
+    return splitAtBreaks(clean, breaksKm).flatMap { section ->
+        downsample(section, maxOf(2, maxPoints * section.size / clean.size.coerceAtLeast(1)))
+    }
+}
 
 internal fun elevationChartPoints(series: List<SeriesPoint>, maxPoints: Int = 300): List<ChartPoint> =
     downsample(series.map { ChartPoint(it.distanceKm, it.value) }, maxPoints)

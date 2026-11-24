@@ -41,4 +41,6 @@ data class RunSeries(
     val elevation: List<SeriesPoint>,
     /** spm (empty if no step data). */
     val cadence: List<SeriesPoint>,
+    /** Distances (km) where the pace line breaks: inside recording gaps (crash/restart), pace is unknown. */
+    val paceBreaksKm: List<Double> = emptyList(),
 )
