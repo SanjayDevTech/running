@@ -1,7 +1,6 @@
 package com.example.running.setup
 
 import android.content.Context
-import android.os.Build
 import com.example.running.core.system.BatteryOptimization
 import com.example.running.core.system.Permissions
 
@@ -25,8 +24,7 @@ internal class AndroidSetupStatusReader(private val context: Context) : SetupSta
     override fun read() = SetupSnapshot(
         fineLocation = Permissions.hasFineLocation(context),
         backgroundLocation = Permissions.hasBackgroundLocation(context),
-        // POST_NOTIFICATIONS is a runtime permission from API 33; earlier it is implicitly granted.
-        notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || Permissions.hasNotifications(context),
+        notifications = Permissions.hasNotifications(context),
         activityRecognition = Permissions.hasActivityRecognition(context),
         batteryExempt = BatteryOptimization.isIgnoring(context),
         locationEnabled = Permissions.isLocationEnabled(context),

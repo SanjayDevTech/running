@@ -2,6 +2,7 @@ package com.example.running.ui.progress
 
 import com.example.running.core.model.Run
 import com.example.running.core.util.epochDay
+import com.example.running.core.util.isoWeekIndex
 import java.time.ZoneId
 
 /**
@@ -16,15 +17,12 @@ internal data class Streaks(
     val longestDays: Int,
 )
 
-/** ISO week index: Mondays map to consecutive integers (1970-01-01 was a Thursday, epochDay 0). */
-internal fun weekIndexOfEpochDay(epochDay: Long): Long = Math.floorDiv(epochDay + 3, 7L)
-
 internal fun computeStreaks(runs: List<Run>, nowMillis: Long, zone: ZoneId): Streaks {
     val days = runs.mapTo(HashSet()) { epochDay(it.startedAtMillis, zone) }
-    val weeks = days.mapTo(HashSet()) { weekIndexOfEpochDay(it) }
+    val weeks = days.mapTo(HashSet()) { isoWeekIndex(it) }
     val today = epochDay(nowMillis, zone)
     return Streaks(
-        currentWeeks = currentStreak(weeks, weekIndexOfEpochDay(today)),
+        currentWeeks = currentStreak(weeks, isoWeekIndex(today)),
         longestWeeks = longestStreak(weeks),
         currentDays = currentStreak(days, today),
         longestDays = longestStreak(days),

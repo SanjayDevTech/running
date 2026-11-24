@@ -8,13 +8,13 @@ import com.example.running.core.model.MapRoute
 import com.example.running.core.model.RouteColoring
 import com.example.running.core.model.RoutePoint
 import com.example.running.core.model.SegmentKind
+import com.example.running.core.util.cosLatFactor
 import com.example.running.core.util.interpolate
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.PaceScale
 import com.example.running.ui.theme.Stop
 import com.example.running.ui.theme.StepFilled
 import com.example.running.ui.theme.Walk
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -162,7 +162,7 @@ internal class RouteProjector(
     private val scale: Float
     private val offX: Float
     private val offY: Float
-    private val cosLat = cos(Math.toRadians((minLat + maxLat) / 2.0))
+    private val cosLat = cosLatFactor((minLat + maxLat) / 2.0)
 
     init {
         val spanX = max((maxLon - minLon) * cosLat, 1e-9)

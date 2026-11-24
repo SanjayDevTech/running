@@ -1,6 +1,5 @@
 package com.example.running.ui.onboarding
 
-import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -148,7 +147,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                                 OnboardingStep.LOCATION -> locationLauncher.launch(Permissions.LOCATION)
                                 // API 30+: the system opens this app's location settings page instead of a dialog.
                                 OnboardingStep.BACKGROUND_LOCATION -> backgroundLauncher.launch(Permissions.BACKGROUND_LOCATION)
-                                OnboardingStep.NOTIFICATIONS -> notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                OnboardingStep.NOTIFICATIONS -> notificationLauncher.launch(Permissions.NOTIFICATIONS)
                                 OnboardingStep.ACTIVITY_RECOGNITION -> activityLauncher.launch(Permissions.ACTIVITY_RECOGNITION)
                                 OnboardingStep.BATTERY -> batteryLauncher.launch(BatteryOptimization.requestExemptionIntent(context))
                                 else -> Unit

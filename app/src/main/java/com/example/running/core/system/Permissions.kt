@@ -1,16 +1,20 @@
 package com.example.running.core.system
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 
 object Permissions {
     val LOCATION = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+    /** Request only when [hasNotifications] is false (never on API 31–32, where it is implicit). */
+    @SuppressLint("InlinedApi")
     const val NOTIFICATIONS = Manifest.permission.POST_NOTIFICATIONS
     const val ACTIVITY_RECOGNITION = Manifest.permission.ACTIVITY_RECOGNITION
 
@@ -29,10 +33,15 @@ object Permissions {
     /** True when location is allowed "all the time" (needed to restart the location FGS from the background). */
     fun hasBackgroundLocation(ctx: Context): Boolean = granted(ctx, BACKGROUND_LOCATION)
 
-    /** Background location can only be requested once fine location is granted. */
+    /**
+     * Background location can only be requested once fine location is granted. Setup code reads the
+     * same rule from the pure `SetupSnapshot.canRequestBackground` (unit-testable without a Context).
+     */
     fun canRequestBackgroundLocation(ctx: Context): Boolean = hasFineLocation(ctx) && !hasBackgroundLocation(ctx)
 
-    fun hasNotifications(ctx: Context): Boolean = granted(ctx, NOTIFICATIONS)
+    /** POST_NOTIFICATIONS is a runtime permission from API 33; on 31–32 it is implicitly granted. */
+    fun hasNotifications(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || granted(ctx, NOTIFICATIONS)
 
     fun hasActivityRecognition(ctx: Context): Boolean = granted(ctx, ACTIVITY_RECOGNITION)
 

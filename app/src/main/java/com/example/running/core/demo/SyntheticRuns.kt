@@ -20,7 +20,9 @@ import com.example.running.core.model.SensorSample
 import com.example.running.core.model.SensorType
 import com.example.running.core.model.Split
 import com.example.running.core.model.TrackPoint
+import com.example.running.core.util.METERS_PER_DEGREE_LAT
 import com.example.running.core.util.METERS_PER_KM
+import com.example.running.core.util.metersPerDegreeLon
 import com.example.running.core.util.paceSecPerKm
 import java.time.Instant
 import java.time.ZoneId
@@ -82,8 +84,8 @@ object SyntheticRuns {
             val walking = spec.walkOnly || (spec.runWalkIntervals && (t / 1000) % 300 >= 240)
             val speed = if (spec.walkOnly) runSpeed else if (walking) WALK_SPEED else runSpeed * (1 + rnd.nextDouble(-0.05, 0.05))
             bearing += rnd.nextDouble(-0.08, 0.08)
-            val dLat = speed * cos(bearing) / 111_320.0
-            val dLon = speed * sin(bearing) / (111_320.0 * cos(Math.toRadians(lat)))
+            val dLat = speed * cos(bearing) / METERS_PER_DEGREE_LAT
+            val dLon = speed * sin(bearing) / metersPerDegreeLon(lat)
             lat += dLat
             lon += dLon
             dist += speed
@@ -97,8 +99,8 @@ object SyntheticRuns {
     fun fixes(spec: Spec, startMillis: Long): List<LocationFix> {
         val rnd = Random(spec.seed * 31 + 7)
         return truth(spec).map { s ->
-            val nLat = rnd.nextGaussian() * spec.noiseM / 111_320.0
-            val nLon = rnd.nextGaussian() * spec.noiseM / (111_320.0 * cos(Math.toRadians(s.lat)))
+            val nLat = rnd.nextGaussian() * spec.noiseM / METERS_PER_DEGREE_LAT
+            val nLon = rnd.nextGaussian() * spec.noiseM / metersPerDegreeLon(s.lat)
             LocationFix(
                 timeMillis = startMillis + s.t,
                 elapsedRealtimeNanos = s.t * 1_000_000L,

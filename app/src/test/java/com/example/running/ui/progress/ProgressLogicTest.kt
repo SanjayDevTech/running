@@ -12,6 +12,7 @@ import com.example.running.core.model.Run
 import com.example.running.core.model.RunRecord
 import com.example.running.core.model.RunStats
 import com.example.running.core.model.RunStatus
+import com.example.running.core.util.isoWeekIndex
 import com.example.running.testing.FakeClock
 import com.example.running.testing.FakeRunRepository
 import com.example.running.testing.MainDispatcherRule
@@ -80,8 +81,8 @@ class ProgressLogicTest {
     @Test fun weekIndexAcrossSundayMonday() {
         // Sun 2026-11-22 and Mon 2026-11-23 are in different weeks; Mon..Sun the same
         val sun = java.time.LocalDate.of(2026, 11, 22).toEpochDay()
-        assertThat(weekIndexOfEpochDay(sun + 1)).isEqualTo(weekIndexOfEpochDay(sun) + 1)
-        assertThat(weekIndexOfEpochDay(sun + 7)).isEqualTo(weekIndexOfEpochDay(sun + 1))
+        assertThat(isoWeekIndex(sun + 1)).isEqualTo(isoWeekIndex(sun) + 1)
+        assertThat(isoWeekIndex(sun + 7)).isEqualTo(isoWeekIndex(sun + 1))
     }
 
     @Test fun stateBucketsAndSelection() {

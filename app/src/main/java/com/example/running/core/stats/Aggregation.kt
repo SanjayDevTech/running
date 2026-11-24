@@ -1,11 +1,10 @@
 package com.example.running.core.stats
 
 import com.example.running.core.model.Run
-import java.time.DayOfWeek
-import java.time.Instant
-import java.time.LocalDate
+import com.example.running.core.util.isoWeekStart
+import com.example.running.core.util.localDate
+import com.example.running.core.util.startMillis
 import java.time.ZoneId
-import java.time.temporal.TemporalAdjusters
 
 // Shared by D (Activities "This week") and E (Progress charts). Runs are bucketed by startedAtMillis.
 
@@ -40,31 +39,28 @@ fun List<Run>.totals(startMillis: Long, endMillis: Long): PeriodTotals {
     return PeriodTotals(startMillis, endMillis, count, distance, moving, elapsed, gain, kcal)
 }
 
-private fun LocalDate.millis(zone: ZoneId): Long = atStartOfDay(zone).toInstant().toEpochMilli()
-
 /** 7 entries, Monday..Sunday of the week starting at [weekStartMillis]. */
 fun bucketByDay(runs: List<Run>, weekStartMillis: Long, zone: ZoneId): List<PeriodTotals> {
-    val monday = Instant.ofEpochMilli(weekStartMillis).atZone(zone).toLocalDate()
+    val monday = localDate(weekStartMillis, zone)
     return (0 until 7).map { i ->
-        runs.totals(monday.plusDays(i.toLong()).millis(zone), monday.plusDays(i + 1L).millis(zone))
+        runs.totals(monday.plusDays(i.toLong()).startMillis(zone), monday.plusDays(i + 1L).startMillis(zone))
     }
 }
 
 /** [weeks] ISO weeks, oldest first, the last one being the week containing [now]. */
 fun bucketByWeek(runs: List<Run>, weeks: Int, now: Long, zone: ZoneId): List<PeriodTotals> {
-    val current = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val current = localDate(now, zone).isoWeekStart()
     return (weeks - 1 downTo 0).map { back ->
         val start = current.minusWeeks(back.toLong())
-        runs.totals(start.millis(zone), start.plusWeeks(1).millis(zone))
+        runs.totals(start.startMillis(zone), start.plusWeeks(1).startMillis(zone))
     }
 }
 
 /** [months] calendar months, oldest first, the last one being the month containing [now]. */
 fun bucketByMonth(runs: List<Run>, months: Int, now: Long, zone: ZoneId): List<PeriodTotals> {
-    val current = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().withDayOfMonth(1)
+    val current = localDate(now, zone).withDayOfMonth(1)
     return (months - 1 downTo 0).map { back ->
         val start = current.minusMonths(back.toLong())
-        runs.totals(start.millis(zone), start.plusMonths(1).millis(zone))
+        runs.totals(start.startMillis(zone), start.plusMonths(1).startMillis(zone))
     }
 }

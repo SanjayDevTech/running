@@ -34,7 +34,8 @@ internal class ActivitiesViewModel(
     /** Thumbnail route for a card; computed once per run id (list rows scroll in and out). */
     suspend fun routeFor(runId: String): MapRoute? {
         if (routeCache.containsKey(runId)) return routeCache[runId]
-        val route = thumbnailRoute(repository.getFilteredPoints(runId))
+        // Full route (pause edges and pace colours match Run detail); RouteThumbnail thins it for drawing.
+        val route = MapRoute.fromTrackPoints(repository.getFilteredPoints(runId)).takeIf { it.points.size >= 2 }
         routeCache[runId] = route
         return route
     }

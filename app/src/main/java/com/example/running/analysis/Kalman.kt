@@ -2,13 +2,14 @@ package com.example.running.analysis
 
 import com.example.running.core.model.GeoPoint
 import com.example.running.core.util.EARTH_RADIUS_M
+import com.example.running.core.util.cosLatFactor
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
 
 /** Flat east/north metres around [origin]; accurate to centimetres over a run-sized area. */
 internal class LocalProjection(val origin: GeoPoint) {
-    private val cosLat = cos(Math.toRadians(origin.lat)).coerceAtLeast(1e-6)
+    private val cosLat = cosLatFactor(origin.lat)
     private val metersPerRad = EARTH_RADIUS_M
 
     fun east(lon: Double): Double = Math.toRadians(lon - origin.lon) * metersPerRad * cosLat

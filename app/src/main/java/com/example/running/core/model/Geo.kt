@@ -1,6 +1,7 @@
 package com.example.running.core.model
 
-import kotlin.math.cos
+import com.example.running.core.util.METERS_PER_DEGREE_LAT
+import com.example.running.core.util.metersPerDegreeLon
 
 data class GeoPoint(val lat: Double, val lon: Double)
 
@@ -10,8 +11,7 @@ data class GeoBounds(val minLat: Double, val minLon: Double, val maxLat: Double,
     /** Grows the box by [meters] on every side (approximate, fine away from the poles). */
     fun padded(meters: Double): GeoBounds {
         val dLat = meters / METERS_PER_DEGREE_LAT
-        val cosLat = cos(Math.toRadians(center.lat)).coerceAtLeast(0.01)
-        val dLon = meters / (METERS_PER_DEGREE_LAT * cosLat)
+        val dLon = meters / metersPerDegreeLon(center.lat)
         return GeoBounds(
             minLat = (minLat - dLat).coerceAtLeast(-90.0),
             minLon = (minLon - dLon).coerceAtLeast(-180.0),
@@ -21,8 +21,6 @@ data class GeoBounds(val minLat: Double, val minLon: Double, val maxLat: Double,
     }
 
     companion object {
-        private const val METERS_PER_DEGREE_LAT = 111_320.0
-
         fun of(points: Iterable<GeoPoint>): GeoBounds? {
             var minLat = Double.POSITIVE_INFINITY
             var minLon = Double.POSITIVE_INFINITY

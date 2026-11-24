@@ -6,15 +6,25 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
-// Weeks start Monday (ISO). Ranges are [start, nextStart) — LongRange.last is nextStart - 1.
+// The only place that computes day / week / month boundaries. Weeks start Monday (ISO).
+// Ranges are [start, nextStart) — LongRange.last is nextStart - 1.
 
-private fun LocalDate.startMillis(zone: ZoneId): Long = atStartOfDay(zone).toInstant().toEpochMilli()
-private fun localDate(millis: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+internal fun LocalDate.startMillis(zone: ZoneId): Long = atStartOfDay(zone).toInstant().toEpochMilli()
+internal fun localDate(millis: Long, zone: ZoneId): LocalDate = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+
+/** Monday of the ISO week containing this date. */
+internal fun LocalDate.isoWeekStart(): LocalDate = with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+/** ISO week index: Mondays map to consecutive integers (1970-01-01 was a Thursday, epochDay 0). */
+fun isoWeekIndex(epochDay: Long): Long = Math.floorDiv(epochDay + 3, 7L)
+
+/** 0 = Monday … 6 = Sunday. */
+fun dayOfWeekIndex(millis: Long, zone: ZoneId): Int = localDate(millis, zone).dayOfWeek.value - 1
 
 fun startOfDay(millis: Long, zone: ZoneId): Long = localDate(millis, zone).startMillis(zone)
 
 fun startOfWeek(millis: Long, zone: ZoneId): Long =
-    localDate(millis, zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).startMillis(zone)
+    localDate(millis, zone).isoWeekStart().startMillis(zone)
 
 fun startOfMonth(millis: Long, zone: ZoneId): Long = localDate(millis, zone).withDayOfMonth(1).startMillis(zone)
 
@@ -22,7 +32,7 @@ fun epochDay(millis: Long, zone: ZoneId): Long = localDate(millis, zone).toEpoch
 
 /** [start, nextStart): `first` is the week start, `last` is one millisecond before the next week. */
 fun weekRange(millis: Long, zone: ZoneId): LongRange {
-    val start = localDate(millis, zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val start = localDate(millis, zone).isoWeekStart()
     return start.startMillis(zone) until start.plusWeeks(1).startMillis(zone)
 }
 

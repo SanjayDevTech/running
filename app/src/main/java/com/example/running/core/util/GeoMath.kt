@@ -1,6 +1,7 @@
 package com.example.running.core.util
 
 import com.example.running.core.model.GeoPoint
+import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -9,6 +10,18 @@ import kotlin.math.sqrt
 // Pure Kotlin: usable from analysis/ (track B).
 
 const val EARTH_RADIUS_M = 6_371_008.8
+
+/** Metres per degree of latitude on the mean-radius sphere (same sphere as [haversineMeters]). */
+const val METERS_PER_DEGREE_LAT = EARTH_RADIUS_M * PI / 180.0
+
+/**
+ * Shrink factor of a degree of longitude at [lat] for equirectangular projections, floored so it
+ * never reaches zero at the poles.
+ */
+fun cosLatFactor(lat: Double): Double = cos(Math.toRadians(lat)).coerceAtLeast(0.01)
+
+/** Metres per degree of longitude at [lat]. */
+fun metersPerDegreeLon(lat: Double): Double = METERS_PER_DEGREE_LAT * cosLatFactor(lat)
 
 fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val phi1 = Math.toRadians(lat1)

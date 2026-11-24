@@ -4,8 +4,6 @@ import app.cash.turbine.test
 import com.example.running.core.demo.SyntheticRuns
 import com.example.running.core.model.ActivityFilter
 import com.example.running.core.model.ActivityType
-import com.example.running.core.model.PointKind
-import com.example.running.core.model.TrackPoint
 import com.example.running.testing.FakeClock
 import com.example.running.testing.FakeRunRepository
 import com.example.running.testing.MainDispatcherRule
@@ -78,18 +76,6 @@ class ActivitiesViewModelTest {
             assertThat(s.cards[0].pace).matches("\\d+:\\d{2}")
             cancelAndIgnoreRemainingEvents()
         }
-    }
-
-    @Test fun thumbnailRouteThinsAndKeepsEndpoints() {
-        fun p(i: Int) = TrackPoint(
-            "r", PointKind.FILTERED, null, true, i * 1000L, null, 12.0 + i * 1e-4, 77.0, null, null,
-            null, null, null, null, null, false,
-        )
-        assertThat(thumbnailRoute(listOf(p(0)))).isNull()
-        val route = thumbnailRoute((0 until 1000).map { p(it) }, maxPoints = 50)!!
-        assertThat(route.points.size).isAtMost(52)
-        assertThat(route.points.first().lat).isEqualTo(12.0)
-        assertThat(route.points.last().lat).isEqualTo(12.0 + 999 * 1e-4)
     }
 
     @Test fun routeForIsCached() = runTest(mainRule.testDispatcher) {
