@@ -1,0 +1,5 @@
+<resources>
+    <!-- Track C (map). Prefix: map_ -->
+    <string name="map_route_description">Route map</string>
+    <string name="map_thumbnail_description">Route preview</string>
+</resources>
