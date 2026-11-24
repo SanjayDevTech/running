@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Activities list -->
+    <string name="history_title">Activities</string>
+    <string name="history_this_week">This week</string>
+    <string name="history_week_activities">Activities</string>
+    <string name="history_week_distance">Distance</string>
+    <string name="history_week_time">Time</string>
+    <string name="history_week_elevation">Elev gain</string>
+    <string name="history_empty_title">No activities yet</string>
+    <string name="history_empty_body">Record a run or a walk and it will show up here.</string>
+    <string name="history_empty_filtered_title">Nothing here</string>
+    <string name="history_empty_filtered_body">No activities match this filter.</string>
+    <string-array name="history_day_initials">
+        <item>M</item>
+        <item>T</item>
+        <item>W</item>
+        <item>T</item>
+        <item>F</item>
+        <item>S</item>
+        <item>S</item>
+    </string-array>
+    <string name="history_card_distance">Distance</string>
+    <string name="history_card_time">Time</string>
+    <string name="history_card_pace">Pace</string>
+    <string name="history_pb_badge">PB</string>
+
+    <!-- Run detail -->
+    <string name="detail_title">Activity</string>
+    <string name="detail_not_found_title">Activity not found</string>
+    <string name="detail_not_found_body">It may have been deleted.</string>
+    <string name="detail_back">Back</string>
+    <string name="detail_more">More options</string>
+    <string name="detail_menu_rename">Rename</string>
+    <string name="detail_menu_change_to_walk">Change to Walk</string>
+    <string name="detail_menu_change_to_run">Change to Run</string>
+    <string name="detail_menu_delete">Delete</string>
+    <string name="detail_menu_compare_engines">Compare engines</string>
+    <string name="detail_rename_title">Rename activity</string>
+    <string name="detail_rename_confirm">Save</string>
+    <string name="detail_delete_title">Delete this activity?</string>
+    <string name="detail_delete_body">The route, splits and stats are removed from this phone. This cannot be undone.</string>
+    <string name="detail_delete_confirm">Delete</string>
+    <string name="detail_stat_distance">Distance</string>
+    <string name="detail_stat_moving_time">Moving time</string>
+    <string name="detail_stat_pace">Avg pace</string>
+    <string name="detail_stat_elapsed">Elapsed</string>
+    <string name="detail_stat_elevation">Elevation</string>
+    <string name="detail_stat_calories">Calories</string>
+    <string name="detail_stat_cadence">Cadence</string>
+    <string name="detail_unit_km">km</string>
+    <string name="detail_unit_pace">/km</string>
+    <string name="detail_unit_kcal">kcal</string>
+    <string name="detail_unit_spm">spm</string>
+    <string name="detail_section_pace">Pace</string>
+    <string name="detail_section_elevation">Elevation</string>
+    <string name="detail_section_splits">Splits</string>
+    <string name="detail_section_segments">Walk and run</string>
+    <string name="detail_section_best_efforts">Best efforts</string>
+    <string name="detail_splits_km">Km</string>
+    <string name="detail_splits_pace">Pace</string>
+    <string name="detail_splits_elev">Elev</string>
+    <string name="detail_segment_run">Run</string>
+    <string name="detail_segment_walk">Walk</string>
+    <string name="detail_segment_stop">Stop</string>
+    <string name="detail_segments_summary">Running %1$s, walking %2$s</string>
+    <string name="detail_effort_rank">#%1$d</string>
+    <string name="detail_pb_label">Personal best</string>
+    <string name="detail_map_open">Open map</string>
+    <string name="detail_map_close">Close map</string>
+    <string name="detail_gps_note">Step-filled distance: %1$s</string>
+    <string name="detail_started">Started %1$s</string>
+</resources>
