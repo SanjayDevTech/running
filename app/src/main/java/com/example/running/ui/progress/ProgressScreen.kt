@@ -98,6 +98,7 @@ fun ProgressScreen(onOpenPersonalBests: () -> Unit, onOpenRun: (runId: String) -
                     yFormatter = { s.metric.formatAxis(it, s.axisMax) },
                     selectedIndex = s.selectedIndex,
                     onSelect = vm::selectBar,
+                    yStep = s.metric.axisStep(s.axisMax),
                 )
             }
             item { SectionHeader(stringResource(R.string.progress_streaks)) }

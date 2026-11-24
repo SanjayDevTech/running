@@ -23,6 +23,7 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisGuidelineComponent
 import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisLabelComponent
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.ColumnCartesianLayerModel
 import com.patrykandpatrick.vico.compose.cartesian.data.columnModel
@@ -39,6 +40,10 @@ import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 /**
  * The app's one bar chart (Vico). The selected bar is drawn in [color]; the others in a raised grey,
  * so the accent marks the bar being read (e.g. the current week).
+ *
+ * [yStep] is the y label step in the bars' unit, chosen by the caller so every label is distinct in
+ * [yFormatter] (whole runs, whole minutes, ...). The axis then runs from 0 to the first step multiple
+ * at or above the tallest bar, so no bar rises past the top label. Null leaves the range to Vico.
  */
 @Composable
 fun AppBarChart(
@@ -49,12 +54,14 @@ fun AppBarChart(
     height: Dp = Sizes.chartHeight,
     selectedIndex: Int? = null,
     onSelect: ((Int) -> Unit)? = null,
+    yStep: Double? = null,
 ) {
     if (bars.isEmpty()) return
     val producer = remember { CartesianChartModelProducer() }
     LaunchedEffect(bars) {
         producer.runTransaction { columnModel { series(bars.indices.map { it }, bars.map { it.value }) } }
     }
+    val yTop = remember(bars, yStep) { yStep?.let { barAxisTop(bars.maxOf { b -> b.value }, it) } }
     val labels = rememberUpdatedState(bars.map { it.label })
     val yFmt = rememberUpdatedState(yFormatter)
     val onSelectState = rememberUpdatedState(onSelect)
@@ -82,13 +89,21 @@ fun AppBarChart(
     val tapMarker = remember { InvisibleMarker }
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(columnProvider = provider),
+            rememberColumnCartesianLayer(
+                columnProvider = provider,
+                rangeProvider = remember(yTop) {
+                    if (yTop == null) CartesianLayerRangeProvider.auto() else CartesianLayerRangeProvider.fixed(minY = 0.0, maxY = yTop)
+                },
+            ),
             startAxis = VerticalAxis.rememberStart(
                 label = axisLabel,
                 line = null,
                 tick = null,
                 guideline = rememberAxisGuidelineComponent(fill = Fill(Hairline)),
                 valueFormatter = remember { CartesianValueFormatter { _, v, _ -> yFmt.value(v) } },
+                itemPlacer = remember(yStep) {
+                    if (yStep == null) VerticalAxis.ItemPlacer.step() else VerticalAxis.ItemPlacer.step(step = { yStep })
+                },
             ),
             bottomAxis = HorizontalAxis.rememberBottom(
                 label = axisLabel,
@@ -118,3 +133,9 @@ private const val MAX_X_LABELS = 7
 
 /** Draws nothing: bar taps only need the visibility callback, not a tooltip. */
 private object InvisibleMarker : CartesianMarker
+
+/** Top of a bar chart's y axis: the first [step] multiple at or above [max], at least one step. */
+internal fun barAxisTop(max: Double, step: Double): Double {
+    val steps = Math.ceil(max.coerceAtLeast(0.0) / step - 1e-9).coerceAtLeast(1.0)
+    return steps * step
+}

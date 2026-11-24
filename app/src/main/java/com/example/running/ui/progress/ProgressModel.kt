@@ -32,6 +32,32 @@ internal fun ProgressMetric.formatAxis(value: Double, axisMax: Double): String =
     ProgressMetric.ELEVATION -> formatElevation(value)
 }
 
+/**
+ * Y label step for a chart whose tallest bar is [axisMax], about [AXIS_LABELS] labels on a round
+ * value that [formatAxis] prints apart: whole runs, whole minutes, whole metres, 0.1 km (1 km once
+ * the axis shows whole kilometres).
+ */
+internal fun ProgressMetric.axisStep(axisMax: Double): Double {
+    val wanted = axisMax.coerceAtLeast(0.0) / AXIS_LABELS
+    return when (this) {
+        ProgressMetric.DISTANCE -> maxOf(niceStep(wanted), if (axisMax < 10_000.0) 100.0 else 1_000.0)
+        ProgressMetric.TIME -> TIME_STEPS_MIN.firstOrNull { it * 60_000.0 >= wanted }?.let { it * 60_000.0 }
+            ?: (Math.ceil(wanted / 3_600_000.0) * 3_600_000.0)
+        ProgressMetric.RUNS -> maxOf(niceStep(wanted), 1.0)
+        ProgressMetric.ELEVATION -> maxOf(niceStep(wanted), 1.0)
+    }
+}
+
+private const val AXIS_LABELS = 4
+private val TIME_STEPS_MIN = listOf(1.0, 2.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0, 180.0, 300.0, 600.0)
+
+/** 1-2-5 value at or above [raw]. */
+private fun niceStep(raw: Double): Double {
+    if (!raw.isFinite() || raw <= 0.0) return 0.0
+    val magnitude = Math.pow(10.0, Math.floor(Math.log10(raw)))
+    return listOf(1.0, 2.0, 5.0, 10.0).first { it * magnitude >= raw - 1e-9 * magnitude } * magnitude
+}
+
 internal data class ProgressUiState(
     val filter: ActivityFilter,
     val period: ProgressPeriod,

@@ -17,6 +17,7 @@ import com.example.running.testing.FakeClock
 import com.example.running.testing.FakeRunRepository
 import com.example.running.testing.MainDispatcherRule
 import com.example.running.testing.TestAppDispatchers
+import com.example.running.ui.components.charts.barAxisTop
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -168,5 +169,27 @@ class ProgressLogicTest {
         assertThat(rows.first { it.kind == PbKind.Effort(BestEffortDistance.K1) }.runId).isNull()
         assertThat(rows.first { it.kind == PbKind.LongestDistance }.value).isEqualTo("21.00 km")
         assertThat(rows.first { it.kind == PbKind.LongestDuration }.value).isNull()
+    }
+
+    @Test fun barAxisLabelsAreDistinctAndCoverTheTallestBar() {
+        val maxima = mapOf(
+            ProgressMetric.DISTANCE to listOf(0.0, 950.0, 1_050.0, 4_300.0, 9_999.0, 42_195.0, 180_000.0),
+            ProgressMetric.TIME to listOf(0.0, 59_000.0, 359_000.0, 3_700_000.0, 20 * 3_600_000.0, 60 * 3_600_000.0),
+            ProgressMetric.RUNS to listOf(0.0, 1.0, 3.0, 7.0, 31.0),
+            ProgressMetric.ELEVATION to listOf(0.0, 2.0, 37.0, 1_234.0),
+        )
+        for ((metric, values) in maxima) for (max in values) {
+            val step = metric.axisStep(max)
+            val top = barAxisTop(max, step)
+            assertThat(top).isAtLeast(max)
+            val n = Math.round(top / step).toInt()
+            assertThat(n).isAtMost(10)
+            val labels = (0..n).map { metric.formatAxis(it * step, max) }
+            assertThat(labels).containsNoDuplicates()
+        }
+        // The smoke-test case: one 1.05 km week drew its bar above a "1.0" top label.
+        assertThat(barAxisTop(1_050.0, ProgressMetric.DISTANCE.axisStep(1_050.0))).isGreaterThan(1_050.0)
+        // ...and one run printed "0, 0, 0, 1, 1, 1".
+        assertThat(ProgressMetric.RUNS.axisStep(1.0)).isEqualTo(1.0)
     }
 }

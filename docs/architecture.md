@@ -1829,3 +1829,20 @@ notification with the app in the background opened Run detail. No crashes in log
   own case).
 Emulator replay: `adb emu geo fix <lon> <lat> <alt> <sats> <knots>` with the speed argument gives a
 realistic Doppler speed (without it the speed is 0 and the run records 0 km).
+
+### 10.6 Run 3 fix pass, round 3: emulator smoke test (2026-11-24)
+
+On `Running_Test` (release APK, fresh install): onboarding, a ~1.05 km run on a replayed 250 m square
+(`adb emu geo fix … <knots>` at 3 m/s), a ~35 s pause while the location kept moving (not counted),
+a force-stop mid-run (auto-resumed on app open: time, distance and pace continued), finish → Run detail
+(1.05 km, 5:59 moving, 6:40 elapsed, 5:43 /km, map, charts, splits, 1K PB), Activities, Progress.
+No crashes in logcat. Fixed:
+- Progress bar charts: y labels repeated ("0, 0, 0, 1, 1, 1" for one run) and a 1.05 km bar rose
+  past a "1.0" top label. `AppBarChart` takes a `yStep`; the axis runs from 0 to the first step
+  multiple at or above the tallest bar, and `ProgressMetric.axisStep` picks a step the metric's
+  formatter prints apart (whole runs, minutes, metres, 0.1 km).
+- Controller replay tests now also run against the real `DefaultLiveMetrics` (pause movement left out;
+  pace kept after an auto-resume gap).
+The slow (red) chord on the map and the pace-chart dip at the force-stop are the straight line across
+the outage: the replayed route turned a corner while the app was dead, so the chord is shorter than
+the path and its pace slower. That is the recorded data, not a bug.
