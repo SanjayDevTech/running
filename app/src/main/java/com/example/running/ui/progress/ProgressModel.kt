@@ -27,7 +27,7 @@ internal fun ProgressMetric.value(t: PeriodTotals): Double = when (this) {
 /** Axis label for a raw chart value of this metric. [axisMax] picks distance decimals. */
 internal fun ProgressMetric.formatAxis(value: Double, axisMax: Double): String = when (this) {
     ProgressMetric.DISTANCE -> formatDistanceKm(value, if (axisMax < 10_000.0) 1 else 0)
-    ProgressMetric.TIME -> formatDurationShort(value.toLong())
+    ProgressMetric.TIME -> formatDurationShort(value.toLong(), withSeconds = false)
     ProgressMetric.RUNS -> Math.round(value).toString()
     ProgressMetric.ELEVATION -> formatElevation(value)
 }

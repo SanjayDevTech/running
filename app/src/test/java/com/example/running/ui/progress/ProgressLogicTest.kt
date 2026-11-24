@@ -189,6 +189,10 @@ class ProgressLogicTest {
         }
         // The smoke-test case: one 1.05 km week drew its bar above a "1.0" top label.
         assertThat(barAxisTop(1_050.0, ProgressMetric.DISTANCE.axisStep(1_050.0))).isGreaterThan(1_050.0)
+        // Time axis stays whole minutes: no "5m 0s" labels.
+        assertThat(ProgressMetric.TIME.formatAxis(5 * 60_000.0, 359_000.0)).isEqualTo("5m")
+        assertThat(ProgressMetric.TIME.formatAxis(0.0, 359_000.0)).isEqualTo("0m")
+        assertThat(ProgressMetric.TIME.formatAxis(3_900_000.0, 3_900_000.0)).isEqualTo("1h 05m")
         // ...and one run printed "0, 0, 0, 1, 1, 1".
         assertThat(ProgressMetric.RUNS.axisStep(1.0)).isEqualTo(1.0)
     }

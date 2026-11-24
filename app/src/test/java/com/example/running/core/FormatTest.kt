@@ -50,8 +50,16 @@ class FormatTest {
         assertThat(formatDuration(3_723_000)).isEqualTo("1:02:03")
         assertThat(formatDuration(-5)).isEqualTo("0:00")
         assertThat(formatDurationShort(2 * 3_600_000L + 19 * 60_000L)).isEqualTo("2h 19m")
-        assertThat(formatDurationShort(45 * 60_000L)).isEqualTo("45m")
+        assertThat(formatDurationShort(45 * 60_000L)).isEqualTo("45m 0s")
         assertThat(formatDurationShort(38_000)).isEqualTo("38s")
+        // Totals no longer truncate: 5:59 is not "5m".
+        assertThat(formatDurationShort(5 * 60_000L + 59_000)).isEqualTo("5m 59s")
+        assertThat(formatDurationShort(3_600_000L + 5 * 60_000L + 30_000)).isEqualTo("1h 05m")
+        assertThat(formatDurationShort(0)).isEqualTo("0s")
+        // Whole-minute axis style.
+        assertThat(formatDurationShort(5 * 60_000L, withSeconds = false)).isEqualTo("5m")
+        assertThat(formatDurationShort(0, withSeconds = false)).isEqualTo("0m")
+        assertThat(formatDurationShort(2 * 3_600_000L, withSeconds = false)).isEqualTo("2h 00m")
     }
 
     @Test fun misc() {

@@ -905,7 +905,7 @@ fun formatDistance(meters: Double, decimals: Int = 2): String        // "5.02 km
 fun formatPace(secPerKm: Double?): String                            // "5:32", "--:--" for null/≥ 60:00
 fun formatPaceWithUnit(secPerKm: Double?): String                    // "5:32 /km"
 fun formatDuration(millis: Long): String                             // "32:12", "1:02:03"
-fun formatDurationShort(millis: Long): String                        // "2h 19m", "45m", "38s"
+fun formatDurationShort(millis: Long, withSeconds: Boolean = true): String  // "1h 05m", "5m 59s", "38s"; withSeconds=false → "5m" (chart axes)
 fun formatElevation(meters: Double?): String                         // "106 m", "–"
 fun formatCalories(kcal: Double?): String                            // "412", "–"
 fun formatCadence(spm: Double?): String                              // "172"
@@ -1846,3 +1846,10 @@ No crashes in logcat. Fixed:
 The slow (red) chord on the map and the pace-chart dip at the force-stop are the straight line across
 the outage: the replayed route turned a corner while the app was dead, so the chord is shorter than
 the path and its pace slower. That is the recorded data, not a bug.
+
+### 10.7 Post-review fixes (2026-11-24)
+
+- **Duration totals** (`formatDurationShort`): under an hour it now prints minutes and seconds
+  ("5m 59s", "38s") instead of truncating 5:59 to "5m"; from an hour "1h 05m" (minutes padded). Used by
+  the Activities "This week" strip, Progress totals and the dev compare max gap. The Progress TIME
+  chart axis passes `withSeconds = false` so its labels stay whole minutes ("5m", not "5m 0s").

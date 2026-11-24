@@ -36,15 +36,20 @@ fun formatDuration(millis: Long): String {
     return if (h > 0) String.format(EN, "%d:%02d:%02d", h, m, s) else String.format(EN, "%d:%02d", m, s)
 }
 
-/** "2h 19m", "45m", "38s". */
-fun formatDurationShort(millis: Long): String {
+/**
+ * Totals: "5m 59s" and "38s" under an hour, "1h 05m" from an hour (minutes zero-padded).
+ * [withSeconds] = false drops the seconds under an hour ("5m", "0m"), for whole-minute chart axes.
+ */
+fun formatDurationShort(millis: Long, withSeconds: Boolean = true): String {
     val totalSec = (millis.coerceAtLeast(0)) / 1000
     val h = totalSec / 3600
     val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
     return when {
-        h > 0 -> "${h}h ${m}m"
-        m > 0 -> "${m}m"
-        else -> "${totalSec}s"
+        h > 0 -> String.format(EN, "%dh %02dm", h, m)
+        !withSeconds -> "${m}m"
+        m > 0 -> "${m}m ${s}s"
+        else -> "${s}s"
     }
 }
 
