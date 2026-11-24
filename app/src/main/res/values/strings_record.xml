@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Track A (recording): prefixes record_ and dev_ only. -->
+<resources>
+    <string name="record_title">Record</string>
+
+    <!-- Permissions / location -->
+    <string name="record_permission_title">Location needed</string>
+    <string name="record_permission_body">Running records your route with GPS. Allow precise location to start a run.</string>
+    <string name="record_permission_allow">Allow location</string>
+    <string name="record_permission_open_settings">Open app settings</string>
+    <string name="record_location_off_title">Location is off</string>
+    <string name="record_location_off_body">Turn on location to record a run.</string>
+    <string name="record_location_off_action">Open location settings</string>
+    <string name="record_accuracy_off">Google Location Accuracy is off, so the Google engine is less precise.</string>
+    <string name="record_accuracy_fix">Turn on</string>
+
+    <!-- GPS start gate -->
+    <string name="record_gps_acquiring">Looking for GPS…</string>
+    <string name="record_gps_improving">Improving accuracy · %1$s</string>
+    <string name="record_gps_improving_countdown">Improving accuracy · %1$s · start in %2$d s</string>
+    <string name="record_gps_ready">GPS ready · %1$s</string>
+    <string name="record_gps_weak">Weak GPS · %1$s. Distance may be less accurate.</string>
+    <string name="record_gps_weak_recording">Weak GPS · %1$s</string>
+    <string name="record_engine_switched">Switched to the %1$s location engine</string>
+
+    <!-- Live stats -->
+    <string name="record_stat_distance">Distance</string>
+    <string name="record_stat_time">Time</string>
+    <string name="record_stat_pace">Pace</string>
+    <string name="record_stat_avg_pace">Avg pace</string>
+    <string name="record_stat_last_km">Last km</string>
+    <string name="record_stat_elevation">Elev gain</string>
+    <string name="record_stat_cadence">Cadence</string>
+    <string name="record_stat_calories">Calories</string>
+    <string name="record_unit_km">km</string>
+    <string name="record_unit_pace">/km</string>
+    <string name="record_unit_spm">spm</string>
+    <string name="record_unit_kcal">kcal</string>
+    <string name="record_paused">Paused</string>
+    <string name="record_saving">Saving run</string>
+
+    <!-- Controls (screen and notification) -->
+    <string name="record_action_start">Start</string>
+    <string name="record_action_pause">Pause</string>
+    <string name="record_action_resume">Resume</string>
+    <string name="record_action_finish">Finish</string>
+
+    <!-- Crash recovery -->
+    <string name="record_recovery_title">Unfinished run</string>
+    <string name="record_recovery_body">Running was closed while recording the run you started on %1$s. Resume recording, or finish and save it as it is.</string>
+    <string name="record_recovery_resume">Resume recording</string>
+    <string name="record_recovery_finish">Finish and save</string>
+
+    <!-- Notification -->
+    <string name="record_notif_title_starting">Starting recording</string>
+    <string name="record_notif_title_saving">Saving run</string>
+    <string name="record_notif_title_running">Running · %1$s km</string>
+    <string name="record_notif_title_paused">Paused · %1$s km</string>
+    <string name="record_notif_text_running">Pace %1$s /km · km %2$d</string>
+    <string name="record_notif_text_paused">Time %1$s</string>
+    <string name="record_notif_chip">%1$s km</string>
+    <string name="record_alert_interrupted_title">Run interrupted</string>
+    <string name="record_alert_interrupted_text">Open Running to resume or finish your run.</string>
+
+    <!-- Failures -->
+    <string name="record_error_play_unavailable">Google location is not available on this phone. In Settings, choose the Auto or Built-in engine.</string>
+    <string name="record_error_save_failed">Could not save the run. It will be offered again the next time you open the app.</string>
+    <string name="record_error_service_refused">Android did not allow recording in the background. Keep the app open, or allow location all the time in Settings.</string>
+
+    <!-- Hidden dev mode -->
+    <string name="dev_dual_engine_badge">Dual engine</string>
+    <string name="dev_compare_title">Compare engines</string>
+    <string name="dev_compare_empty_title">No engine data</string>
+    <string name="dev_compare_empty_body">This run has no raw fixes to compare.</string>
+    <string name="dev_compare_stats">Engines</string>
+    <string name="dev_compare_fixes">Fixes</string>
+    <string name="dev_compare_distance">Raw distance</string>
+    <string name="dev_compare_median_accuracy">Median accuracy</string>
+    <string name="dev_compare_p95_accuracy">95th pct accuracy</string>
+    <string name="dev_compare_interval">Mean interval</string>
+    <string name="dev_compare_max_gap">Longest gap</string>
+    <string name="dev_compare_primary_share">Drove the run</string>
+</resources>
