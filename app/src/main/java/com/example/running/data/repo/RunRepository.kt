@@ -34,6 +34,12 @@ interface RunRepository {
     /** Kind must be RAW; A batches (~every 5 s). */
     suspend fun appendRawPoints(points: List<TrackPoint>)
     suspend fun appendSensorSamples(runId: String, samples: List<SensorSample>)
+
+    /** One recording flush: both batches in a single transaction (all or nothing, one commit). */
+    suspend fun appendRecorded(runId: String, points: List<TrackPoint>, samples: List<SensorSample>) {
+        appendRawPoints(points)
+        appendSensorSamples(runId, samples)
+    }
     suspend fun startPause(runId: String, atMillis: Long)
 
     /** Closes the open pause. */

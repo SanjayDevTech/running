@@ -130,16 +130,12 @@ internal class RecordingSession(
             pendingSamples += SensorSample(SensorType.STEP_COUNTER_BOOT, it.timeMillis, it.stepsSinceBoot)
             storedCounterMillis = it.timeMillis
         }
-        if (pendingPoints.isNotEmpty()) {
-            val batch = pendingPoints.toList()
-            repository.appendRawPoints(batch)
-            pendingPoints.subList(0, batch.size).clear()
-        }
-        if (pendingSamples.isNotEmpty()) {
-            val batch = pendingSamples.toList()
-            repository.appendSensorSamples(runId, batch)
-            pendingSamples.subList(0, batch.size).clear()
-        }
+        if (pendingPoints.isEmpty() && pendingSamples.isEmpty()) return
+        val points = pendingPoints.toList()
+        val samples = pendingSamples.toList()
+        repository.appendRecorded(runId, points, samples) // one transaction, one commit per flush
+        pendingPoints.subList(0, points.size).clear()
+        pendingSamples.subList(0, samples.size).clear()
     }
 
     suspend fun pause(atMillis: Long) {

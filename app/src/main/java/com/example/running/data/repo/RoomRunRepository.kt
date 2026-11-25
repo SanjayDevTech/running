@@ -82,6 +82,14 @@ class RoomRunRepository(
         this.samples.insertAll(samples.map { it.toEntity(runId) })
     }
 
+    override suspend fun appendRecorded(runId: String, points: List<TrackPoint>, samples: List<SensorSample>) {
+        if (points.isEmpty() && samples.isEmpty()) return
+        db.withTransaction {
+            appendRawPoints(points)
+            appendSensorSamples(runId, samples)
+        }
+    }
+
     override suspend fun startPause(runId: String, atMillis: Long) {
         db.withTransaction {
             // Never two open pauses: a repeated pause() is a no-op.

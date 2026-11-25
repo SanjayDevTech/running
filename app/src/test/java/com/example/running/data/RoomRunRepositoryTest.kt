@@ -15,6 +15,8 @@ import com.example.running.core.model.PauseInterval
 import com.example.running.core.model.PointKind
 import com.example.running.core.model.RunStatus
 import com.example.running.core.model.RunnerProfile
+import com.example.running.core.model.SensorSample
+import com.example.running.core.model.SensorType
 import com.example.running.data.db.RunningDatabase
 import com.example.running.data.repo.RoomRunRepository
 import com.example.running.testing.FakeClock
@@ -83,6 +85,20 @@ class RoomRunRepositoryTest {
         // re-saving replaces derived rows instead of duplicating them
         repo.saveAnalysis("r1", f.endMillis, result)
         assertThat(repo.getFilteredPoints("r1")).hasSize(raw.size)
+    }
+
+    @Test fun recordedFlushIsOneAllOrNothingTransaction() = runTest {
+        val f = GpsFixture.load("f0_straight_1k")
+        repo.createActiveRun("r1", f.startMillis, f.zoneId, LocationEngineMode.AUTO, LocationEngine.PLAY, false)
+        val raw = f.toRawPoints("r1").take(10)
+        val samples = listOf(SensorSample(SensorType.STEP_DETECTOR, f.startMillis + 1_000, 1.0))
+        repo.appendRecorded("r1", raw, samples)
+        assertThat(repo.getRawPoints("r1")).hasSize(10)
+        assertThat(repo.loadAnalysisInput("r1", f.endMillis, RunnerProfile()).sensorSamples).hasSize(1)
+        // Samples for an unknown run violate the foreign key: the points of the same flush roll back too.
+        val more = f.toRawPoints("r1").drop(10).take(5)
+        assertThat(runCatching { repo.appendRecorded("missing", more, samples) }.isFailure).isTrue()
+        assertThat(repo.getRawPoints("r1")).hasSize(10)
     }
 
     @Test fun renameAndSetTypeKeepCustomNames() = runTest {

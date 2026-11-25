@@ -135,4 +135,14 @@ class RecordingSessionTest {
         s.onFix(fixes[4], isPrimary = true)
         assertThat(s.routeIfChanged()!!.points).hasSize(2)
     }
+
+    @Test fun flushWritesPointsAndSamplesTogether() = runTest {
+        val (s, repo) = session()
+        straightFixes(5).forEach { s.onFix(it, isPrimary = true) }
+        s.onSteps(com.example.running.core.model.StepEvent(T0 + 3_000, 1))
+        s.flush(T0 + 5_000)
+        s.flush(T0 + 10_000) // nothing new: no write
+        assertThat(repo.recordedFlushes).isEqualTo(1)
+        assertThat(repo.getRawPoints("r")).hasSize(3)
+    }
 }

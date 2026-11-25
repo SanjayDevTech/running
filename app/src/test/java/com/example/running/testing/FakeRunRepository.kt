@@ -80,6 +80,17 @@ class FakeRunRepository(
         edit(runId) { it.copy(sensorSamples = it.sensorSamples + samples) }
     }
 
+    /** Atomic like Room's transaction: a failure writes neither batch. */
+    var recordedFlushes = 0
+        private set
+
+    override suspend fun appendRecorded(runId: String, points: List<TrackPoint>, samples: List<SensorSample>) {
+        maybeFailAppend()
+        require(points.all { it.kind == PointKind.RAW })
+        recordedFlushes++
+        edit(runId) { it.copy(points = it.points + points, sensorSamples = it.sensorSamples + samples) }
+    }
+
     override suspend fun startPause(runId: String, atMillis: Long) = edit(runId) { g ->
         if (g.pauses.any { it.endMillis == null }) g else g.copy(pauses = g.pauses + PauseInterval(atMillis, null))
     }

@@ -578,6 +578,7 @@ interface RunRepository {
     ): Run                                                  // name placeholder "Run", type RUN, status ACTIVE
     suspend fun appendRawPoints(points: List<TrackPoint>)  // kind must be RAW; A batches (~every 5 s)
     suspend fun appendSensorSamples(runId: String, samples: List<SensorSample>)
+    suspend fun appendRecorded(runId: String, points: List<TrackPoint>, samples: List<SensorSample>)  // one flush, one transaction (§10.10)
     suspend fun startPause(runId: String, atMillis: Long)
     suspend fun endPause(runId: String, atMillis: Long)     // closes the open pause
     suspend fun markEngineFallback(runId: String)
