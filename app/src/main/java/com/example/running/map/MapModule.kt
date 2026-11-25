@@ -10,6 +10,9 @@ class MapModule(core: CoreDeps) {
 
     val offline: MapOfflineManager = RegionOfflineManager(MapLibreOfflineBackend(core.app, core.dispatchers))
 
-    /** Main thread, from RunningApp.onCreate: MapLibre.getInstance + ambient cache size + style file. */
+    /**
+     * Main thread. MapLibre.getInstance + ambient cache size + style file; idempotent. Optional:
+     * RouteMap and the offline manager call it themselves on first use (lazy since §10.10).
+     */
     fun initialize() = MapRuntime.initialize(app)
 }

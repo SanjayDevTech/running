@@ -12,6 +12,7 @@ class RunningApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         NotificationChannels.ensure(this)
-        container.map.initialize()
+        // MapLibre starts lazily (first map or offline call): not for every process start, e.g. the
+        // backup worker or a sticky service restart during crash recovery.
     }
 }

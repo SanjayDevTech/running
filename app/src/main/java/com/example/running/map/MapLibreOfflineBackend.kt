@@ -20,7 +20,12 @@ internal class MapLibreOfflineBackend(
     private val context: Context,
     private val dispatchers: AppDispatchers,
 ) : OfflineBackend {
-    private val manager get() = OfflineManager.getInstance(context)
+    /** Main thread. Starts MapLibre first if no map has been shown yet in this process. */
+    private val manager: OfflineManager
+        get() {
+            MapRuntime.initialize(context)
+            return OfflineManager.getInstance(context)
+        }
     private val known = HashMap<Long, OfflineRegion>()
 
     override suspend fun find(runId: String): List<Long> = withContext(dispatchers.main) {

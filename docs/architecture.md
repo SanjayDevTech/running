@@ -62,7 +62,7 @@ FOUNDATION as a stub, then owned by track X with a frozen public signature.
 
 ```
 …/
-├── RunningApp.kt                         F0   Application; builds AppContainer; MapModule.initialize(); channels
+├── RunningApp.kt                         F0   Application; builds AppContainer; channels (MapLibre starts lazily, §10.10)
 ├── MainActivity.kt                       F0   edge-to-edge, theme, nav host, deep links, recovery check
 ├── di/
 │   ├── AppContainer.kt                   F0   manual DI root (§2.6)
@@ -690,7 +690,7 @@ class AppContainer(app: RunningApp) {
 ```
 
 `RunningApp : Application` holds `lateinit var container: AppContainer` (built in `onCreate`), calls
-`NotificationChannels.ensure(this)`, `container.map.initialize()`. `MainActivity` calls
+`NotificationChannels.ensure(this)` (MapLibre is no longer started here: it initialises on first map/offline use, §10.10). `MainActivity` calls
 `container.setup.backupScheduler.applyFromSettings()` and
 `container.recording.controller.checkForInterruptedRun()` once per UI launch (food-tracker's
 `initializeForUi` pattern).
@@ -1197,7 +1197,7 @@ interface MapOfflineManager {
 // map/MapModule.kt  CONTRACT(C)
 class MapModule(core: CoreDeps) {
     val offline: MapOfflineManager
-    fun initialize()                     // main thread, from RunningApp.onCreate: MapLibre.getInstance + ambient cache size
+    fun initialize()                     // main thread, idempotent: MapLibre.getInstance + ambient cache size; lazy, called on first map/offline use (SCR 2026-11-25, §10.10)
 }
 
 // map/RouteMap.kt  CONTRACT(C)

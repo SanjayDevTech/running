@@ -20,7 +20,7 @@ internal object MapRuntime {
     @Volatile private var styleUri: String? = null
     @Volatile private var ambientConfigured = false
 
-    /** Main thread. Idempotent. */
+    /** Main thread. Idempotent; called on first use (RouteMap, offline manager), not at process start. */
     fun initialize(context: Context, mapTilerKey: String = BuildConfig.MAPTILER_KEY) {
         val app = context.applicationContext
         try {
