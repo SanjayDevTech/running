@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Merged ONLY into the Baseline Profile plugin's nonMinifiedRelease and benchmarkRelease
+     variants (app/build.gradle.kts), never into debug or release. Exported so the
+     :baselineprofile tests can reach it from the device shell (`am broadcast -n`). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".benchmark.BenchmarkSetupReceiver"
+            android:exported="true" />
+    </application>
+</manifest>

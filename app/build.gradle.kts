@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 // Load optional credentials from local.properties (or the environment) so they stay out of git.
@@ -101,6 +102,28 @@ android {
     }
 }
 
+// Baseline + startup profile (architecture.md §7.1). The app is sideloaded, so it never gets Play's
+// cloud profiles: the profile bundled here is the only AOT compilation it gets at install. It is
+// generated on demand by :baselineprofile and committed under src/release/generated/baselineProfiles;
+// ordinary and CI builds just package the committed files and need no device.
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    // Also emit startup-prof.txt; R8 uses it to put startup classes in the primary dex.
+    dexLayoutOptimization = true
+}
+
+// Test hooks for the profile generator and the startup benchmark (src/benchmarkHooks: a receiver
+// that skips onboarding and seeds demo runs). Only the plugin's benchmark variants get them; debug
+// and the shipped release never do.
+androidComponents {
+    for (buildType in listOf("nonMinifiedRelease", "benchmarkRelease")) {
+        onVariants(selector().withBuildType(buildType)) { variant ->
+            variant.sources.kotlin?.addStaticSourceDirectory("src/benchmarkHooks/kotlin")
+            variant.sources.manifests.addStaticManifestFile("src/benchmarkHooks/AndroidManifest.xml")
+        }
+    }
+}
+
 ksp {
     // Room writes each schema version here; MigrationTestHelper reads them from androidTest assets.
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -136,6 +159,10 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.maplibre.android)
     implementation(libs.vico.compose.m3)
+    // Sideloaded installs get no profile from the installer: on first launch this copies the bundled
+    // baseline profile into ART, and the next background dexopt compiles those methods.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
