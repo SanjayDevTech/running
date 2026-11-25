@@ -1,34 +1,95 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher icon foreground: a running figure, accent orange (Accent token).
-     Drawn inside the 66 dp adaptive-icon safe zone (centre 54,54). -->
+<!--
+  Adaptive icon foreground: a running figure, mid-stride, in Accent orange.
+
+  Same construction as GymTracker's barbell and FoodTracker's fork and knife:
+  flat filled geometry in one colour on true black - no stroke, no gradient,
+  no shadow. Every limb is a 6dp bar with fully round ends (a capsule), and the
+  head is a 12dp disc, twice the bar width. Joints are two capsules of the same
+  width overlapping on a shared centre, so elbows, knees and the hip come out
+  as clean round joints with no knots. The arms leave the torso 3dp below its
+  top, so the shoulder is the torso's own round end, and a 3.5dp gap keeps the
+  head clear of it at 48dp.
+
+  Pose, centre-line points on the 108dp canvas before the group scale:
+    head      (63.75,32.5) r6
+    torso     (58.75,44) -> hip (51.25,59.5), leaning ~26 deg forward
+    arms      from (57.45,46.7): front elbow (67.25,50.5) -> hand (73.75,44);
+              back elbow (47.75,47) -> hand (41.25,54.5)  (forearms parallel)
+    legs      from the hip: front knee (64.25,65) -> foot (60.75,78.5);
+              back knee (45.75,71.5) -> foot (34.25,73)  (push-off shin flat)
+
+  Extents x31.25..76.75, y26.5..81.5, centred on (54,54). The group scales it
+  0.88 about the centre (as GymTracker scales its barbell 0.92), giving
+  x34..74, y29.8..78.2 - about 40 x 48dp, the references' visual size. The
+  farthest point (the front hand) is 26.8dp from centre, inside the 33dp
+  safe-zone radius, so circle, squircle, rounded-square and teardrop masks
+  never crop anything. Drawn bar width after scaling: 5.3dp.
+
+  Colour: @color/accent (= Accent in ui/theme/Color.kt, #FF6A2B).
+  Path data is generated from the points above; the monochrome layer repeats
+  it verbatim, so keep the two in step.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- head -->
-    <path
-        android:fillColor="#FFFF6A2B"
-        android:pathData="M63,30m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
-    <!-- torso -->
-    <path
-        android:strokeColor="#FFFF6A2B"
-        android:strokeWidth="8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M58,42L51,59" />
-    <!-- arms: front swings forward and up, back swings behind -->
-    <path
-        android:strokeColor="#FFFF6A2B"
-        android:strokeWidth="6.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M57,45L67,52L74,45M57,45L46,46L39,53" />
-    <!-- legs: front knee driven forward, back leg pushing off -->
-    <path
-        android:strokeColor="#FFFF6A2B"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M51,59L63,66L59,79M51,59L45,71L33,73" />
+
+    <group
+        android:scaleX="0.88"
+        android:scaleY="0.88"
+        android:pivotX="54"
+        android:pivotY="54">
+
+        <!-- head -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M57.75,32.5 a6,6 0 1 1 12,0 a6,6 0 1 1 -12,0 Z" />
+
+        <!-- torso -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M56.05,42.69 L48.55,58.19 A3,3 0 0 0 53.95,60.81 L61.45,45.31 A3,3 0 0 0 56.05,42.69 Z" />
+
+        <!-- front upper arm -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M56.37,49.5 L66.17,53.3 A3,3 0 0 0 68.33,47.7 L58.53,43.9 A3,3 0 0 0 56.37,49.5 Z" />
+
+        <!-- front forearm -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M69.37,52.62 L75.87,46.12 A3,3 0 0 0 71.63,41.88 L65.13,48.38 A3,3 0 0 0 69.37,52.62 Z" />
+
+        <!-- back upper arm -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M57.36,43.7 L47.66,44 A3,3 0 0 0 47.84,50 L57.54,49.7 A3,3 0 0 0 57.36,43.7 Z" />
+
+        <!-- back forearm -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M45.48,45.04 L38.98,52.54 A3,3 0 0 0 43.52,56.46 L50.02,48.96 A3,3 0 0 0 45.48,45.04 Z" />
+
+        <!-- front thigh -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M50.08,62.26 L63.08,67.76 A3,3 0 0 0 65.42,62.24 L52.42,56.74 A3,3 0 0 0 50.08,62.26 Z" />
+
+        <!-- front shin -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M61.35,64.25 L57.85,77.75 A3,3 0 0 0 63.65,79.25 L67.15,65.75 A3,3 0 0 0 61.35,64.25 Z" />
+
+        <!-- back thigh -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M48.52,58.25 L43.02,70.25 A3,3 0 0 0 48.48,72.75 L53.98,60.75 A3,3 0 0 0 48.52,58.25 Z" />
+
+        <!-- back shin -->
+        <path
+            android:fillColor="@color/accent"
+            android:pathData="M45.36,68.53 L33.86,70.03 A3,3 0 0 0 34.64,75.97 L46.14,74.47 A3,3 0 0 0 45.36,68.53 Z" />
+    </group>
 </vector>

@@ -1,34 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher icon monochrome: a running figure, single colour; the launcher tints it for themed icons.
-     Drawn inside the 66 dp adaptive-icon safe zone (centre 54,54). -->
+<!--
+  Themed-icon monochrome layer (Android 13+). Same geometry as the foreground;
+  the system takes these white pixels as a mask and tints them with the
+  user's theme colour. Keyline maths lives in ic_launcher_foreground.xml;
+  keep the two in step.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- head -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M63,30m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
-    <!-- torso -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M58,42L51,59" />
-    <!-- arms: front swings forward and up, back swings behind -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="6.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M57,45L67,52L74,45M57,45L46,46L39,53" />
-    <!-- legs: front knee driven forward, back leg pushing off -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M51,59L63,66L59,79M51,59L45,71L33,73" />
+
+    <group
+        android:scaleX="0.88"
+        android:scaleY="0.88"
+        android:pivotX="54"
+        android:pivotY="54">
+
+        <!-- head -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M57.75,32.5 a6,6 0 1 1 12,0 a6,6 0 1 1 -12,0 Z" />
+
+        <!-- torso -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M56.05,42.69 L48.55,58.19 A3,3 0 0 0 53.95,60.81 L61.45,45.31 A3,3 0 0 0 56.05,42.69 Z" />
+
+        <!-- front upper arm -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M56.37,49.5 L66.17,53.3 A3,3 0 0 0 68.33,47.7 L58.53,43.9 A3,3 0 0 0 56.37,49.5 Z" />
+
+        <!-- front forearm -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M69.37,52.62 L75.87,46.12 A3,3 0 0 0 71.63,41.88 L65.13,48.38 A3,3 0 0 0 69.37,52.62 Z" />
+
+        <!-- back upper arm -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M57.36,43.7 L47.66,44 A3,3 0 0 0 47.84,50 L57.54,49.7 A3,3 0 0 0 57.36,43.7 Z" />
+
+        <!-- back forearm -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M45.48,45.04 L38.98,52.54 A3,3 0 0 0 43.52,56.46 L50.02,48.96 A3,3 0 0 0 45.48,45.04 Z" />
+
+        <!-- front thigh -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M50.08,62.26 L63.08,67.76 A3,3 0 0 0 65.42,62.24 L52.42,56.74 A3,3 0 0 0 50.08,62.26 Z" />
+
+        <!-- front shin -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M61.35,64.25 L57.85,77.75 A3,3 0 0 0 63.65,79.25 L67.15,65.75 A3,3 0 0 0 61.35,64.25 Z" />
+
+        <!-- back thigh -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M48.52,58.25 L43.02,70.25 A3,3 0 0 0 48.48,72.75 L53.98,60.75 A3,3 0 0 0 48.52,58.25 Z" />
+
+        <!-- back shin -->
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M45.36,68.53 L33.86,70.03 A3,3 0 0 0 34.64,75.97 L46.14,74.47 A3,3 0 0 0 45.36,68.53 Z" />
+    </group>
 </vector>

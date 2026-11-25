@@ -1718,7 +1718,8 @@ All former open questions are settled; tracks treat these as rules.
 9. **Live Updates** (`POST_PROMOTED_NOTIFICATIONS`, `Notification.ProgressStyle`) are used only on
    API 36+; older devices get a normal ongoing notification with public lock-screen visibility.
 10. **Signing key**: keep Running's own public key generated in Run 1 (distinct from food-tracker's, §7).
-11. **Launcher icon**: adaptive vector icon of a running figure (§9.13).
+11. **Launcher icon**: adaptive vector icon of a running figure (§9.13), built the GymTracker/FoodTracker
+    way: flat Accent geometry on true black, one shared construction across the three apps.
 
 ---
 
@@ -1761,10 +1762,19 @@ through the BOM. compileSdk 37 minor 2 works.
     (SHA-256 `EE:A6:59:61:…:A5:29:F2:18` vs food-tracker `C0:07:52:08:…:DB:60:D0:05`).
 13. Launcher icon (foundation patch): adaptive icon in `mipmap-anydpi/ic_launcher.xml` and
     `ic_launcher_round.xml` (minSdk 31, so no density PNG/WebP fallbacks). Layers are vectors:
-    `drawable/ic_launcher_background.xml` (`Raised1` near-black), `ic_launcher_foreground.xml` (bold
-    running figure in `Accent`, inside the 66 dp safe zone) and `ic_launcher_monochrome.xml` (same
-    figure, single colour, for themed icons). The template WebP icons were deleted. The splash screen
-    reuses `@mipmap/ic_launcher`.
+    `drawable/ic_launcher_background.xml` (`@color/black`, true black), `ic_launcher_foreground.xml`
+    (running figure in `@color/accent`) and `ic_launcher_monochrome.xml` (same paths in white, for
+    themed icons). The template WebP icons were deleted. The splash screen reuses `@mipmap/ic_launcher`;
+    its background is black too, so the icon tile disappears into it.
+    *Redrawn 2026-11-25 to match GymTracker (barbell) and FoodTracker (fork and knife):* flat filled
+    geometry, one colour, no strokes, gradients or shadows. Every limb is a 6 dp capsule (bar with fully
+    round ends), joints are same-width capsules overlapping on a shared centre, the head is a 12 dp disc
+    (twice the bar width) with a 3.5 dp gap above the torso. The group is scaled 0.88 about (54,54), as
+    GymTracker scales its barbell 0.92, so the figure is about 40 x 48 dp, centred, with its farthest
+    point 26.8 dp out: inside the 33 dp safe-zone radius, so no mask crops it (the old figure's head
+    and back foot poked past it, and its `Raised1` tile showed as a grey disc on the black splash).
+    Point list and keyline maths are in the foreground's header comment; the monochrome layer repeats
+    the path data verbatim.
 
 **Foundation patch (after Run 1 review):** `ACCESS_BACKGROUND_LOCATION` declared;
 `Permissions.BACKGROUND_LOCATION`, `hasBackgroundLocation()`, `canRequestBackgroundLocation()` added
