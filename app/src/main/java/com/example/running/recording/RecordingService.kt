@@ -36,7 +36,8 @@ class RecordingService : LifecycleService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        when (intent?.action) {
+        val action = intent?.action
+        when (action) {
             ACTION_PAUSE -> controller.pause()
             ACTION_RESUME -> controller.resume()
             ACTION_STOP -> controller.stop()
@@ -44,6 +45,13 @@ class RecordingService : LifecycleService() {
             null -> lifecycleScope.launch { if (!controller.recoverFromService()) shutDown() }
         }
         observeState()
+        if (needsActiveRun(action)) {
+            // A notification action that outlived its run (double-tapped Finish, a tap racing the
+            // notification's removal) restarted this service: nothing will ever end it, so end it here
+            // once the controller has handled the action. Never for ACTION_START: app-open auto-resume
+            // starts the service before it publishes Recording.
+            lifecycleScope.launch { if (!controller.hasActiveRun()) shutDown() }
+        }
         return START_STICKY
     }
 
@@ -118,6 +126,10 @@ class RecordingService : LifecycleService() {
 
         /** Upper bound only; released when the run stops. */
         private const val WAKE_LOCK_TIMEOUT_MILLIS = 12 * 60 * 60 * 1_000L
+
+        /** Actions that only make sense for a run in progress; the service ends itself if there is none. */
+        internal fun needsActiveRun(action: String?): Boolean =
+            action == ACTION_PAUSE || action == ACTION_RESUME || action == ACTION_STOP
 
         internal fun startIntent(context: Context): Intent =
             Intent(context, RecordingService::class.java).setAction(ACTION_START)

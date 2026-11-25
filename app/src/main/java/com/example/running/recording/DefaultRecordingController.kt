@@ -126,6 +126,15 @@ internal class DefaultRecordingController(
     /** Sticky restart of [RecordingService] after a process kill. True when recording resumed. */
     suspend fun recoverFromService(): Boolean = withContext(serial) { recover(RecoveryOrigin.SERVICE_RESTART) }
 
+    /**
+     * True while a run is being recorded or saved. Runs on the serial queue, so it answers after every
+     * command issued before it (e.g. a notification action) has been applied.
+     */
+    suspend fun hasActiveRun(): Boolean = withContext(serial) {
+        val s = _state.value
+        session != null || s is RecordingState.Recording || s is RecordingState.Saving
+    }
+
     /** The service could not go foreground (Android refused): fall back to asking on the next app open. */
     fun onServiceStartRefused() = launchSerial {
         if (session != null) {

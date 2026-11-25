@@ -309,6 +309,39 @@ class DefaultRecordingControllerTest {
         assertThat(h.events).contains(RecordingEvent.Failure(RecordingMessage.PLAY_UNAVAILABLE.name))
     }
 
+    // ------------------------------------------------------------------ stale notification actions
+
+    @Test fun staleActionsAfterTheRunEndedFindNoActiveRun() = runTest {
+        val h = Harness(this)
+        warmUpAndStart(h)
+        advanceTimeBy(5_000)
+        // A live run: the service keeps going after a pause/resume action.
+        h.controller.pause()
+        assertThat(h.controller.hasActiveRun()).isTrue()
+        h.controller.resume()
+        assertThat(h.controller.hasActiveRun()).isTrue()
+        // Finish: active while saving (the service then ends itself on Idle).
+        h.controller.stop()
+        assertThat(h.controller.hasActiveRun()).isTrue()
+        advanceTimeBy(2_000)
+        assertThat(h.state).isEqualTo(RecordingState.Idle)
+        // A second Finish / a Pause tapped on the stale notification: no run, the service shuts down.
+        h.controller.stop()
+        assertThat(h.controller.hasActiveRun()).isFalse()
+        h.controller.pause()
+        assertThat(h.controller.hasActiveRun()).isFalse()
+        assertThat(h.state).isEqualTo(RecordingState.Idle)
+    }
+
+    @Test fun onlyRunActionsLetTheServiceEndItself() {
+        assertThat(RecordingService.needsActiveRun(RecordingService.ACTION_PAUSE)).isTrue()
+        assertThat(RecordingService.needsActiveRun(RecordingService.ACTION_RESUME)).isTrue()
+        assertThat(RecordingService.needsActiveRun(RecordingService.ACTION_STOP)).isTrue()
+        // App-open auto-resume starts the service before Recording is published; sticky restarts recover.
+        assertThat(RecordingService.needsActiveRun(RecordingService.ACTION_START)).isFalse()
+        assertThat(RecordingService.needsActiveRun(null)).isFalse()
+    }
+
     // ------------------------------------------------------------------ crash recovery
 
     /** An ACTIVE run that was recording 60 s of fixes, ending 9 min before "now" (T0). */
