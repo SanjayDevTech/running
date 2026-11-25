@@ -108,6 +108,9 @@ class FakeLiveMetrics(private val startedAtMillis: Long) : LiveMetrics {
 
     override fun acceptedRoute(): MapRoute =
         MapRoute(fixes.filterNot { it.second }.map { RoutePoint(it.first.lat, it.first.lon, 0.0, null, false, null) })
+
+    /** Paused fixes add no route point. */
+    override fun routeVersion(): Int = fixes.count { !it.second }
 }
 
 class FakeLiveMetricsFactory : LiveMetricsFactory {

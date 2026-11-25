@@ -99,6 +99,30 @@ class LiveMetricsTest {
         assertThat(r.metrics.acceptedRoute().points.size).isLessThan(20)
     }
 
+    @Test fun routeVersionChangesOnlyWhenTheRouteGrows() {
+        val f = GpsFixture.load("b_city_loop_5k")
+        val metrics = DefaultLiveMetricsFactory().create(f.runnerProfile(), f.startMillis)
+        var lastVersion = metrics.routeVersion()
+        var lastSize = metrics.acceptedRoute().points.size
+        var unchangedFixes = 0
+        val fixes = f.toLocationFixes()
+        fixes.forEachIndexed { i, fix ->
+            // A paused stretch in the middle: fixes keep coming, the route must not change.
+            metrics.onFix(fix, paused = i in 300 until 360)
+            val size = metrics.acceptedRoute().points.size
+            val version = metrics.routeVersion()
+            if (size == lastSize) {
+                assertThat(version).isEqualTo(lastVersion)
+                unchangedFixes++
+            } else {
+                assertThat(version).isNotEqualTo(lastVersion)
+            }
+            lastVersion = version
+            lastSize = size
+        }
+        assertThat(unchangedFixes).isAtLeast(60)
+    }
+
     @Test fun pausedMovementNotCounted() {
         val r = replay("b_paused")
         assertThat(r.end.distanceM).isWithin(0.03 * 1_800).of(truth("b_paused"))

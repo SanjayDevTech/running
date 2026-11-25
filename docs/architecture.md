@@ -1146,6 +1146,7 @@ interface LiveMetrics {
     fun onResumeGap(atMillis: Long, steps: Double?)    // resumed after a process death; steps from the counter (§10.7)
     fun snapshot(nowMillis: Long): LiveStats
     fun acceptedRoute(): MapRoute            // live polyline (pace colouring optional)
+    fun routeVersion(): Int                  // changes iff acceptedRoute() would change (SCR 2026-11-25, §10.10)
 }
 interface LiveMetricsFactory { fun create(profile: RunnerProfile, startedAtMillis: Long): LiveMetrics }
 interface RunNamer { fun name(startedAtMillis: Long, zoneId: String, type: ActivityType): String }  // "Morning Run", "Evening Walk"…

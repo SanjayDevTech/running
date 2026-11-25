@@ -36,6 +36,12 @@ interface LiveMetrics {
     fun snapshot(nowMillis: Long): LiveStats
     /** Live polyline (pace colouring optional). */
     fun acceptedRoute(): MapRoute
+
+    /**
+     * Changes whenever [acceptedRoute] would return a different polyline, so callers copy and redraw the
+     * route only when it grew (not on every fix while paused or standing still).
+     */
+    fun routeVersion(): Int
 }
 
 interface LiveMetricsFactory {

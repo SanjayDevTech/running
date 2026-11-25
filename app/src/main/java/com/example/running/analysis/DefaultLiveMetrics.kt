@@ -68,6 +68,7 @@ internal class DefaultLiveMetrics(
 
     private val history = ArrayDeque<Sample>()
     private val route = ArrayList<RoutePoint>()
+    private var routeVersion = 0
     private var nextKm = METERS_PER_KM
     private var lastSplitMoving = 0L
     private var lastSplitPace: Double? = null
@@ -183,6 +184,7 @@ internal class DefaultLiveMetrics(
                 geo.lat, geo.lon, distance, currentPace(), stepFilled,
                 if (stationary) SegmentKind.STOP else gait.toSegmentKind(),
             )
+            routeVersion++
         }
     }
 
@@ -282,6 +284,9 @@ internal class DefaultLiveMetrics(
 
     @Synchronized
     override fun acceptedRoute(): MapRoute = MapRoute(ArrayList(route))
+
+    @Synchronized
+    override fun routeVersion(): Int = routeVersion
 
     // ------------------------------------------------------------------------------------------
 

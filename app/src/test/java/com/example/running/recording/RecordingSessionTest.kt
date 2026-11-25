@@ -119,4 +119,20 @@ class RecordingSessionTest {
         assertThat(metrics.resumeGaps).containsExactly(T0 to null) // the fix at T0 + 5 s gave up waiting
         assertThat(metrics.fixes).hasSize(8)
     }
+
+    @Test fun routeIsRepublishedOnlyWhenItChanges() = runTest {
+        val (s, _) = session(notBefore = T0)
+        val fixes = straightFixes(6)
+        assertThat(s.routeIfChanged()).isNotNull() // first call always publishes (empty route)
+        s.onFix(fixes[0], isPrimary = true)
+        assertThat(s.routeIfChanged()!!.points).hasSize(1)
+        assertThat(s.routeIfChanged()).isNull()
+        s.pause(T0 + 1_500)
+        s.onFix(fixes[2], isPrimary = true) // paused: no route point
+        s.onFix(fixes[3], isPrimary = false) // secondary engine: never a route point
+        assertThat(s.routeIfChanged()).isNull()
+        s.resume(T0 + 3_500)
+        s.onFix(fixes[4], isPrimary = true)
+        assertThat(s.routeIfChanged()!!.points).hasSize(2)
+    }
 }

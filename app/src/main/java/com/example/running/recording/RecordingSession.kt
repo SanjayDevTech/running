@@ -50,8 +50,8 @@ internal class RecordingSession(
     private val pendingSamples = mutableListOf<SensorSample>()
     private var cumulativeSteps = initialStepCount
     private val lastFixTime = mutableMapOf<LocationEngine, Long>()
-    private var routeVersion = 0
-    private var publishedRouteVersion = -1
+    /** [LiveMetrics.routeVersion] last published; null = nothing published yet. */
+    private var publishedRouteVersion: Int? = null
 
     private var gapPending = resumeGap != null
     private val held = mutableListOf<() -> Unit>()
@@ -76,7 +76,6 @@ internal class RecordingSession(
         gapPending = false
         pendingSamples += SensorSample(SensorType.RESUME_GAP, gap.resumedAtMillis, steps ?: -1.0)
         metrics.onResumeGap(gap.resumedAtMillis, steps)
-        routeVersion++
         held.forEach { it() }
         held.clear()
     }
@@ -96,7 +95,6 @@ internal class RecordingSession(
         val pausedNow = paused
         if (isPrimary) {
             feed(fix.timeMillis) { metrics.onFix(fix, pausedNow) }
-            routeVersion++
         }
         if (isPrimary || dualEngine) pendingPoints += fix.toRawPoint(runId, isPrimary = isPrimary, paused = paused)
     }
@@ -163,10 +161,14 @@ internal class RecordingSession(
 
     fun snapshot(nowMillis: Long): LiveStats = metrics.snapshot(nowMillis)
 
-    /** The live route if it changed since the last call, else null. */
+    /**
+     * The live route if it changed since the last call, else null. Paused and standing-still fixes add
+     * no route points, so they neither copy the route nor make the map redraw it.
+     */
     fun routeIfChanged(): MapRoute? {
-        if (routeVersion == publishedRouteVersion) return null
-        publishedRouteVersion = routeVersion
+        val version = metrics.routeVersion()
+        if (version == publishedRouteVersion) return null
+        publishedRouteVersion = version
         return metrics.acceptedRoute()
     }
 }
