@@ -1,6 +1,7 @@
 package com.example.running.backup
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -27,6 +28,8 @@ class BackupScheduler(
             .build()
         val request = PeriodicWorkRequestBuilder<BackupWorker>(intervalHours.toLong(), TimeUnit.HOURS)
             .setConstraints(constraints)
+            // A run in progress defers the job; try again every RETRY_MINUTES rather than backing off for hours.
+            .setBackoffCriteria(BackoffPolicy.LINEAR, RETRY_MINUTES, TimeUnit.MINUTES)
             .build()
         workManager.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
@@ -35,5 +38,6 @@ class BackupScheduler(
 
     companion object {
         const val WORK_NAME = "recurring-backup"
+        const val RETRY_MINUTES = 15L
     }
 }

@@ -3,6 +3,7 @@ package com.example.running.backup
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.example.running.core.model.ActivityFilter
 import com.example.running.core.model.RunStatus
 import com.example.running.core.util.AppDispatchers
 import com.example.running.core.util.Clock
@@ -12,6 +13,7 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.decodeFromStream
@@ -56,19 +58,53 @@ class BackupManager internal constructor(
         restore(payload, restoreProfile)
     }
 
-    /** Writes a timestamped file to the backup folder (or Download/Running) and prunes to the newest 5. */
-    suspend fun saveScheduledBackup(): Result<String> = guarded {
+    /**
+     * Writes a timestamped file to the backup folder (or Download/Running) and prunes to the newest 5.
+     * Always writes ("Back up now"); the periodic job uses [saveScheduledBackupIfChanged].
+     */
+    suspend fun saveScheduledBackup(): Result<String> = guarded { saveBackup(changeFingerprint()) }
+
+    /**
+     * The periodic job: as [saveScheduledBackup], but skipped (success with null) when nothing that goes
+     * into a backup changed since the last one and that backup's folder still holds a backup file.
+     */
+    suspend fun saveScheduledBackupIfChanged(): Result<String?> = guarded {
+        val fingerprint = changeFingerprint()
+        val backup = settings.current().backup
+        val unchanged = backup.lastBackupFingerprint == fingerprint &&
+            withContext(dispatchers.io) { runCatching { storage.list(backup.folderUri) }.getOrDefault(emptyList()) }.isNotEmpty()
+        if (unchanged) null else saveBackup(fingerprint)
+    }
+
+    private suspend fun saveBackup(fingerprint: String): String {
         val payload = buildPayload()
         val folder = settings.current().backup.folderUri
         val name = backupFileName(clock.nowMillis(), clock.zoneId())
         val saved = withContext(dispatchers.io) { storage.saveNew(folder, name) { writePayload(it, payload) } }
         settings.setLastBackupAt(clock.nowMillis())
+        settings.setLastBackupFingerprint(fingerprint)
         runCatching {
             withContext(dispatchers.io) {
                 filesToPrune(storage.list(folder), KEEP_BACKUPS).forEach { storage.delete(it) }
             }
         }
-        saved.name
+        return saved.name
+    }
+
+    /**
+     * Cheap summary of everything a backup holds, from the run rows only (no points): which finished runs
+     * exist (added, deleted, imported) and each one's edit time (rename, type, re-analysis all bump
+     * updatedAt), the profile and the engine mode. Taken before the payload is built, so a change made
+     * while writing makes the next backup run again.
+     */
+    internal suspend fun changeFingerprint(): String {
+        val finished = runs.observeRuns(ActivityFilter.ALL).first()
+        val current = settings.current()
+        // Every run's own edit time, not just the newest: an imported run can carry a later one.
+        val runsKey = finished.map { "${it.id}:${it.updatedAtMillis}" }.sorted()
+        return listOf(
+            "v1", finished.size, runsKey.hashCode(), current.profile.toSnapshot().hashCode(), current.engineMode.name,
+        ).joinToString("|")
     }
 
     /** Backups in the current destination, newest first. */

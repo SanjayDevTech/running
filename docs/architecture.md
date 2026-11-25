@@ -538,7 +538,8 @@ data class RunnerProfile(
 )
 
 // core/model/Settings.kt
-data class BackupSettings(val folderUri: String? = null, val intervalHours: Int = 0, val lastBackupAtMillis: Long? = null)
+data class BackupSettings(val folderUri: String? = null, val intervalHours: Int = 0, val lastBackupAtMillis: Long? = null,
+    val lastBackupFingerprint: String? = null)   // what the last backup held; scheduled backups skip when unchanged (§10.10)
 data class AppSettings(
     val onboardingComplete: Boolean = false,
     val profile: RunnerProfile = RunnerProfile(),
@@ -654,6 +655,7 @@ interface SettingsRepository {
     suspend fun setBackupFolderUri(uri: String?)
     suspend fun setBackupIntervalHours(hours: Int)
     suspend fun setLastBackupAt(millis: Long)
+    suspend fun setLastBackupFingerprint(fingerprint: String)   // §10.10
     suspend fun setBatteryPromptDismissed(dismissed: Boolean)
 }
 ```

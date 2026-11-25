@@ -38,6 +38,7 @@ class DataStoreSettingsRepositoryTest {
         repo.setBackupFolderUri("content://tree/x")
         repo.setBackupIntervalHours(24)
         repo.setLastBackupAt(123L)
+        repo.setLastBackupFingerprint("v1|2|99")
         repo.setBatteryPromptDismissed(true)
 
         val s = repo.current()
@@ -48,6 +49,7 @@ class DataStoreSettingsRepositoryTest {
         assertThat(s.engineMode).isEqualTo(LocationEngineMode.BUILT_IN)
         assertThat(s.devModeUnlocked && s.devDualEngine && s.batteryPromptDismissed).isTrue()
         assertThat(s.backup.folderUri).isEqualTo("content://tree/x")
+        assertThat(s.backup.lastBackupFingerprint).isEqualTo("v1|2|99")
         assertThat(s.backup.intervalHours).isEqualTo(24)
         assertThat(s.backup.lastBackupAtMillis).isEqualTo(123L)
 

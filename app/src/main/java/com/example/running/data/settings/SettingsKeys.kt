@@ -23,5 +23,6 @@ object SettingsKeys {
     val BACKUP_FOLDER_URI = stringPreferencesKey("backup_folder_uri")
     val BACKUP_INTERVAL_HOURS = intPreferencesKey("backup_interval_hours")
     val LAST_BACKUP_AT_MILLIS = longPreferencesKey("last_backup_at_millis")
+    val LAST_BACKUP_FINGERPRINT = stringPreferencesKey("last_backup_fingerprint")
     val BATTERY_PROMPT_DISMISSED = booleanPreferencesKey("battery_prompt_dismissed")
 }

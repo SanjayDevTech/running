@@ -22,5 +22,6 @@ interface SettingsRepository {
     suspend fun setBackupFolderUri(uri: String?)
     suspend fun setBackupIntervalHours(hours: Int)
     suspend fun setLastBackupAt(millis: Long)
+    suspend fun setLastBackupFingerprint(fingerprint: String)
     suspend fun setBatteryPromptDismissed(dismissed: Boolean)
 }

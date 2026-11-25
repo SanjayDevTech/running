@@ -65,6 +65,9 @@ class DataStoreSettingsRepository(private val store: DataStore<Preferences>) : S
 
     override suspend fun setLastBackupAt(millis: Long) = edit { it[SettingsKeys.LAST_BACKUP_AT_MILLIS] = millis }
 
+    override suspend fun setLastBackupFingerprint(fingerprint: String) =
+        edit { it[SettingsKeys.LAST_BACKUP_FINGERPRINT] = fingerprint }
+
     override suspend fun setBatteryPromptDismissed(dismissed: Boolean) =
         edit { it[SettingsKeys.BATTERY_PROMPT_DISMISSED] = dismissed }
 
@@ -95,6 +98,7 @@ class DataStoreSettingsRepository(private val store: DataStore<Preferences>) : S
                     folderUri = p[SettingsKeys.BACKUP_FOLDER_URI],
                     intervalHours = p[SettingsKeys.BACKUP_INTERVAL_HOURS] ?: 0,
                     lastBackupAtMillis = p[SettingsKeys.LAST_BACKUP_AT_MILLIS],
+                    lastBackupFingerprint = p[SettingsKeys.LAST_BACKUP_FINGERPRINT],
                 ),
                 batteryPromptDismissed = p[SettingsKeys.BATTERY_PROMPT_DISMISSED] ?: false,
             )

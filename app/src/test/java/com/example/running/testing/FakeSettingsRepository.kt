@@ -40,6 +40,9 @@ class FakeSettingsRepository(initial: AppSettings = AppSettings()) : SettingsRep
         state.update { it.copy(backup = it.backup.copy(intervalHours = hours.coerceAtLeast(0))) }
     override suspend fun setLastBackupAt(millis: Long) =
         state.update { it.copy(backup = it.backup.copy(lastBackupAtMillis = millis)) }
+
+    override suspend fun setLastBackupFingerprint(fingerprint: String) =
+        state.update { it.copy(backup = it.backup.copy(lastBackupFingerprint = fingerprint)) }
     override suspend fun setBatteryPromptDismissed(dismissed: Boolean) =
         state.update { it.copy(batteryPromptDismissed = dismissed) }
 }

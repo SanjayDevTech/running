@@ -186,6 +186,62 @@ class BackupManagerTest {
     }
 
     @Test
+    fun scheduledBackupSkipsWhenNothingChanged() = runTest {
+        val a = rig()
+        graphs().forEach { a.repo.importRunGraph(it) }
+        suspend fun scheduled(): String? { clock.advanceBy(60_000); return a.manager.saveScheduledBackupIfChanged().getOrThrow() }
+        suspend fun files() = a.manager.listBackups().size
+
+        assertThat(scheduled()).isNotNull()                     // first backup
+        assertThat(scheduled()).isNull()                        // nothing changed: skipped
+        assertThat(files()).isEqualTo(1)
+
+        a.repo.rename("r1", "Renamed")                          // an edit
+        assertThat(scheduled()).isNotNull()
+        assertThat(scheduled()).isNull()
+
+        a.repo.deleteRun("r2")                                  // a deletion
+        assertThat(scheduled()).isNotNull()
+        a.repo.importRunGraph(graphs()[1])                      // a run added (restored)
+        assertThat(scheduled()).isNotNull()
+
+        a.settings.updateProfile(a.settings.current().profile.copy(weightKg = 81.0)) // profile goes into the backup
+        assertThat(scheduled()).isNotNull()
+        a.settings.setEngineMode(LocationEngineMode.BUILT_IN)
+        assertThat(scheduled()).isNotNull()
+        assertThat(scheduled()).isNull()
+
+        // "Back up now" always writes.
+        clock.advanceBy(60_000)
+        assertThat(a.manager.saveScheduledBackup().getOrThrow()).isNotEmpty()
+        assertThat(files()).isEqualTo(5)                        // 6 written, newest 5 kept
+    }
+
+    @Test
+    fun scheduledBackupWritesAgainWhenTheFolderLostItsBackups() = runTest {
+        val a = rig()
+        a.repo.importRunGraph(graphs().first())
+        a.manager.saveScheduledBackupIfChanged().getOrThrow()
+        a.manager.listBackups().forEach { a.manager.deleteBackup(it) }
+        clock.advanceBy(60_000)
+        assertThat(a.manager.saveScheduledBackupIfChanged().getOrThrow()).isNotNull()
+        // A new folder holds no backup yet either.
+        a.settings.setBackupFolderUri("content://tree/new")
+        clock.advanceBy(60_000)
+        assertThat(a.manager.saveScheduledBackupIfChanged().getOrThrow()).isNotNull()
+    }
+
+    @Test
+    fun scheduledBackupWaitsWhileARunIsRecordedOrSaved() {
+        val stats = com.example.running.core.model.LiveStats.ZERO
+        val gps = com.example.running.core.model.GpsStatus.NONE
+        assertThat(BackupWorker.deferWhile(com.example.running.core.model.RecordingState.Recording("r", 0, false, stats, gps))).isTrue()
+        assertThat(BackupWorker.deferWhile(com.example.running.core.model.RecordingState.Saving("r"))).isTrue()
+        assertThat(BackupWorker.deferWhile(com.example.running.core.model.RecordingState.Idle)).isFalse()
+        assertThat(BackupWorker.deferWhile(com.example.running.core.model.RecordingState.WarmingUp(gps))).isFalse()
+    }
+
+    @Test
     fun fileNameUsesTheZoneAndPrunePicksOldest() {
         assertThat(backupFileName(1_764_040_800_000L, java.time.ZoneId.of("Asia/Kolkata")))
             .isEqualTo("running-backup-20251125-085000.json")

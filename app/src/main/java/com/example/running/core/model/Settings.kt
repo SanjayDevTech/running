@@ -4,6 +4,8 @@ data class BackupSettings(
     val folderUri: String? = null,
     val intervalHours: Int = 0,
     val lastBackupAtMillis: Long? = null,
+    /** What the last backup contained (BackupManager's change fingerprint); scheduled backups skip when unchanged. */
+    val lastBackupFingerprint: String? = null,
 )
 
 data class AppSettings(
