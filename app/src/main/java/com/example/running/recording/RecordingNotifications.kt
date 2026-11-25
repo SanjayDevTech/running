@@ -22,6 +22,16 @@ internal class RecordingNotifications(context: Context) {
     private val app = context.applicationContext
     private val manager: NotificationManager? get() = app.getSystemService(NotificationManager::class.java)
 
+    // Built once: every PendingIntent.get* is a binder call, and the notification is rebuilt every few seconds.
+    private val contentIntent: PendingIntent by lazy {
+        PendingIntent.getActivity(
+            app, 0, DeepLinks.openRecordingIntent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+    private val pauseAction by lazy { action(R.drawable.ic_record_pause, R.string.record_action_pause, RecordingService.ACTION_PAUSE) }
+    private val resumeAction by lazy { action(R.drawable.ic_record_play, R.string.record_action_resume, RecordingService.ACTION_RESUME) }
+    private val stopAction by lazy { action(R.drawable.ic_record_stop, R.string.record_action_finish, RecordingService.ACTION_STOP) }
+
     fun build(model: NotificationModel): Notification {
         val title = when (model.phase) {
             NotificationModel.Phase.STARTING -> app.getString(R.string.record_notif_title_starting)
@@ -39,7 +49,7 @@ internal class RecordingNotifications(context: Context) {
             .setColor(Accent.toArgb())
             .setContentTitle(title)
             .setContentText(text)
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(Notification.CATEGORY_WORKOUT)
@@ -51,9 +61,9 @@ internal class RecordingNotifications(context: Context) {
         } else {
             builder.setShowWhen(false)
         }
-        if (model.showPause) builder.addAction(action(R.drawable.ic_record_pause, R.string.record_action_pause, RecordingService.ACTION_PAUSE))
-        if (model.showResume) builder.addAction(action(R.drawable.ic_record_play, R.string.record_action_resume, RecordingService.ACTION_RESUME))
-        if (model.showStop) builder.addAction(action(R.drawable.ic_record_stop, R.string.record_action_finish, RecordingService.ACTION_STOP))
+        if (model.showPause) builder.addAction(pauseAction)
+        if (model.showResume) builder.addAction(resumeAction)
+        if (model.showStop) builder.addAction(stopAction)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) liveUpdate(builder, model)
         return builder.build()
     }
@@ -86,7 +96,7 @@ internal class RecordingNotifications(context: Context) {
             .setColor(Accent.toArgb())
             .setContentTitle(app.getString(R.string.record_alert_interrupted_title))
             .setContentText(app.getString(R.string.record_alert_interrupted_text))
-            .setContentIntent(contentIntent())
+            .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -101,10 +111,6 @@ internal class RecordingNotifications(context: Context) {
     fun notifyRecording(notification: Notification) {
         runCatching { manager?.notify(NotificationChannels.ID_RECORDING, notification) }
     }
-
-    private fun contentIntent(): PendingIntent = PendingIntent.getActivity(
-        app, 0, DeepLinks.openRecordingIntent(app), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-    )
 
     private fun action(icon: Int, label: Int, action: String): Notification.Action {
         val intent = PendingIntent.getService(

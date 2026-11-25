@@ -71,12 +71,13 @@ internal class MapLibreOfflineBackend(
 
     override suspend fun download(handle: Long): Boolean = withContext(dispatchers.main) {
         val region = known[handle] ?: return@withContext false
-        withTimeoutOrNull(DOWNLOAD_TIMEOUT_MS) {
+        val ok = withTimeoutOrNull(DOWNLOAD_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 val done = AtomicBoolean(false)
                 fun finish(ok: Boolean) {
                     if (done.compareAndSet(false, true)) {
                         region.setDownloadState(OfflineRegion.STATE_INACTIVE)
+                        region.setObserver(null) // drops the observer and the finished continuation it holds
                         cont.resume(ok)
                     }
                 }
@@ -90,17 +91,26 @@ internal class MapLibreOfflineBackend(
                 })
                 region.setDownloadState(OfflineRegion.STATE_ACTIVE)
                 cont.invokeOnCancellation {
-                    if (done.compareAndSet(false, true)) region.setDownloadState(OfflineRegion.STATE_INACTIVE)
+                    if (done.compareAndSet(false, true)) {
+                        region.setDownloadState(OfflineRegion.STATE_INACTIVE)
+                        region.setObserver(null)
+                    }
                 }
             }
         } ?: run {
             region.setDownloadState(OfflineRegion.STATE_INACTIVE)
+            region.setObserver(null)
             false
         }
+        // A finished region needs no handle any more (find() looks it up again); a failed one is
+        // still deleted through it by the caller.
+        if (ok) known.remove(handle)
+        ok
     }
 
     override suspend fun progress(handle: Long): RegionProgress? = withContext(dispatchers.main) {
-        val region = known[handle] ?: return@withContext null
+        // A status check ends this lookup: drop the native handle (find() re-adds it when needed).
+        val region = known.remove(handle) ?: return@withContext null
         suspendCancellableCoroutine { cont ->
             region.getStatus(object : OfflineRegion.OfflineRegionStatusCallback {
                 override fun onStatus(status: OfflineRegionStatus?) = cont.resume(status?.let { RegionProgress(it.isComplete) })
