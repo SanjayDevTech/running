@@ -430,8 +430,8 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         val hi = base[i].t + AnalysisTuning.LOCAL_STRIDE_WINDOW_MILLIS
         var d = 0.0
         var s = 0.0
-        for (k in 1 until iv.size) {
-            if (base[k].t < lo || base[k - 1].t > hi) continue
+        // Same intervals, same order as scanning all of them: O(log n + window) instead of O(n) per call.
+        for (k in strideWindow(iv.size, { base[it].t }, lo, hi)) {
             if (isStrideSource(base, iv, k, gait)) { d += iv[k].dist; s += iv[k].steps }
         }
         return StrideModel.measure(gait, d, s, AnalysisTuning.LOCAL_STRIDE_MIN_STEPS)
@@ -566,4 +566,29 @@ internal class DefaultRunAnalyzer(private val namer: RunNamer) : RunAnalyzer {
         if (vAcc != null && vAcc > AnalysisTuning.GPS_ALT_MAX_VERTICAL_ACCURACY_M) return null
         return p.mslAltitudeM ?: p.altitudeM
     }
+}
+
+/**
+ * The intervals k in 1 until [size] (interval k spans points k-1..k) that overlap [lo]..[hi]:
+ * time(k) >= lo and time(k - 1) <= hi. [time] must not decrease with the index, so these form one
+ * contiguous range, found by binary search.
+ */
+internal fun strideWindow(size: Int, time: (Int) -> Long, lo: Long, hi: Long): IntRange {
+    if (size < 2) return IntRange.EMPTY
+    // First k >= 1 with time(k) >= lo.
+    var a = 1
+    var b = size
+    while (a < b) {
+        val m = (a + b) ushr 1
+        if (time(m) >= lo) b = m else a = m + 1
+    }
+    val first = a
+    // First k >= 1 with time(k - 1) > hi; the window ends just before it.
+    a = 1
+    b = size
+    while (a < b) {
+        val m = (a + b) ushr 1
+        if (time(m - 1) > hi) b = m else a = m + 1
+    }
+    return first until a
 }
