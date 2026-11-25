@@ -15,8 +15,6 @@
 
     <!-- GPS start gate -->
     <string name="record_gps_acquiring">Looking for GPS…</string>
-    <string name="record_gps_improving">Improving accuracy · %1$s</string>
-    <string name="record_gps_improving_countdown">Improving accuracy · %1$s · start in %2$d s</string>
     <string name="record_gps_ready">GPS ready · %1$s</string>
     <string name="record_gps_weak">Weak GPS · %1$s. Distance may be less accurate.</string>
     <string name="record_gps_weak_recording">Weak GPS · %1$s</string>

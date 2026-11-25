@@ -1002,7 +1002,7 @@ parallel. "Stub" behaviour is replaced by the implementing track. Since Run 2 ev
 // core/model/Recording.kt (F0)
 data class GpsStatus(
     val engine: LocationEngine?, val accuracyM: Float?, val quality: GpsQuality,
-    val startAllowed: Boolean,        // good fix, or ≥ ~10 s of waiting with any fix
+    val startAllowed: Boolean,        // always true: Start is never GPS-gated (decided 2026-11-25); weakSignalWarning shows when not GOOD
     val weakSignalWarning: Boolean,   // start allowed only by the timeout
     val fallbackActive: Boolean,      // AUTO switched from PLAY to PLATFORM (or back)
     val waitingMillis: Long,

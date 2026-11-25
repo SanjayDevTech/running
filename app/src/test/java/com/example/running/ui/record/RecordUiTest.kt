@@ -11,16 +11,8 @@ class RecordUiTest {
 
     @Test fun hintFollowsTheGate() {
         assertThat(gpsHint(GpsStatus.NONE)).isEqualTo(GpsHint.ACQUIRING)
-        assertThat(gpsHint(gps(GpsQuality.POOR, allowed = false, weak = false))).isEqualTo(GpsHint.IMPROVING)
         assertThat(gpsHint(gps(GpsQuality.POOR, allowed = true, weak = true))).isEqualTo(GpsHint.WEAK)
         assertThat(gpsHint(gps(GpsQuality.GOOD, allowed = true, weak = false))).isEqualTo(GpsHint.READY)
-    }
-
-    @Test fun countdownToWeakStart() {
-        assertThat(secondsUntilWeakStart(gps(GpsQuality.FAIR, false, false, waiting = 3_200))).isEqualTo(7)
-        assertThat(secondsUntilWeakStart(gps(GpsQuality.FAIR, false, false, waiting = 9_999))).isEqualTo(1)
-        assertThat(secondsUntilWeakStart(gps(GpsQuality.FAIR, true, true, waiting = 12_000))).isNull()
-        assertThat(secondsUntilWeakStart(GpsStatus.NONE.copy(waitingMillis = 3_000))).isNull()
     }
 
     @Test fun permissionOutranksLocationSwitch() {
@@ -31,21 +23,21 @@ class RecordUiTest {
     }
 
     @Test fun startTappableWhileBlockedUnlessAFixIsInFlight() {
-        assertThat(startEnabled(LocationBlock.LOCATION_OFF, GpsStatus.NONE, startPending = false)).isTrue()
-        assertThat(startEnabled(LocationBlock.PERMISSION, GpsStatus.NONE, startPending = false)).isTrue()
-        assertThat(startEnabled(LocationBlock.LOCATION_OFF, GpsStatus.NONE, startPending = true)).isFalse()
+        assertThat(startEnabled(LocationBlock.LOCATION_OFF, startPending = false)).isTrue()
+        assertThat(startEnabled(LocationBlock.PERMISSION, startPending = false)).isTrue()
+        assertThat(startEnabled(LocationBlock.LOCATION_OFF, startPending = true)).isFalse()
     }
 
-    @Test fun startFollowsTheGateOnceUnblocked() {
-        assertThat(startEnabled(null, GpsStatus.NONE, startPending = false)).isFalse()
-        assertThat(startEnabled(null, gps(GpsQuality.GOOD, allowed = true, weak = false), startPending = true)).isTrue()
+    @Test fun startNeverWaitsForGpsOnceUnblocked() {
+        assertThat(startEnabled(null, startPending = false)).isTrue()
+        assertThat(startEnabled(null, startPending = true)).isTrue()
     }
 
-    @Test fun pendingStartGoesThroughOnlyWhenUnblockedAndAllowed() {
+    @Test fun pendingStartGoesThroughOnceUnblockedAndWarmingUp() {
         val ready = gps(GpsQuality.GOOD, allowed = true, weak = false)
-        val waiting = gps(GpsQuality.POOR, allowed = false, weak = false)
+        val weak = gps(GpsQuality.POOR, allowed = true, weak = true)
         assertThat(shouldAutoStart(startPending = true, block = null, gps = ready)).isTrue()
-        assertThat(shouldAutoStart(startPending = true, block = null, gps = waiting)).isFalse()
+        assertThat(shouldAutoStart(startPending = true, block = null, gps = weak)).isTrue()
         assertThat(shouldAutoStart(startPending = true, block = null, gps = null)).isFalse()
         assertThat(shouldAutoStart(startPending = true, block = LocationBlock.LOCATION_OFF, gps = ready)).isFalse()
         assertThat(shouldAutoStart(startPending = false, block = null, gps = ready)).isFalse()

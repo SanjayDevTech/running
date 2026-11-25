@@ -5,16 +5,12 @@ import com.example.running.core.model.GpsStatus
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
 
-/** Waiting this long with any fresh fix unlocks a weak-signal start (also the Record screen countdown). */
-internal const val WEAK_START_TIMEOUT_MILLIS = 10_000L
-
 /**
- * Start gate and live GPS status. Start is allowed once a GOOD fix (<= 10 m) has been seen, or after
- * [weakTimeoutMillis] of waiting with any fresh fix (then with a weak-signal warning). A fix older than
- * [staleMillis] counts as no fix.
+ * Live GPS status before and during a run. Start is never blocked (user decision 2026-11-25): it is
+ * allowed at once, with a weak-signal warning whenever the current fix is not GOOD (<= 10 m) or there
+ * is no fix yet. A fix older than [staleMillis] counts as no fix.
  */
 internal class GpsGate(
-    private val weakTimeoutMillis: Long = WEAK_START_TIMEOUT_MILLIS,
     private val staleMillis: Long = 5_000,
 ) {
     var engine: LocationEngine? = null
@@ -25,12 +21,10 @@ internal class GpsGate(
         private set
     private var lastFixNanos: Long? = null
     private var waitStartNanos: Long = 0
-    private var goodSeen = false
 
     /** Starts a new wait (warm-up or resume); keeps the last fix so a running engine is not re-awaited. */
     fun reset(nowNanos: Long) {
         waitStartNanos = nowNanos
-        goodSeen = false
     }
 
     fun onEngine(engine: LocationEngine, fallbackActive: Boolean) {
@@ -42,7 +36,6 @@ internal class GpsGate(
         lastFix = fix
         lastFixNanos = nowNanos
         engine = fix.engine
-        if (GpsQuality.fromAccuracy(fix.horizontalAccuracyM) == GpsQuality.GOOD) goodSeen = true
     }
 
     fun status(nowNanos: Long): GpsStatus {
@@ -54,13 +47,12 @@ internal class GpsGate(
             else -> GpsQuality.fromAccuracy(fix.horizontalAccuracyM)
         }
         val waitingMillis = ((nowNanos - waitStartNanos) / 1_000_000).coerceAtLeast(0)
-        val startAllowed = quality != GpsQuality.NONE && (goodSeen || waitingMillis >= weakTimeoutMillis)
         return GpsStatus(
             engine = engine,
             accuracyM = fix?.horizontalAccuracyM,
             quality = quality,
-            startAllowed = startAllowed,
-            weakSignalWarning = startAllowed && quality != GpsQuality.GOOD,
+            startAllowed = true,
+            weakSignalWarning = quality != GpsQuality.GOOD,
             fallbackActive = fallbackActive,
             waitingMillis = waitingMillis,
         )

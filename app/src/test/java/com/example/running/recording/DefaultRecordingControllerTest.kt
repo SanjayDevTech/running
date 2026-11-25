@@ -117,18 +117,10 @@ class DefaultRecordingControllerTest {
 
     // ------------------------------------------------------------------ start gate
 
-    @Test fun startIsGatedUntilWeakTimeout() = runTest {
+    @Test fun weakGpsStartsImmediatelyWithWarning() = runTest {
         val h = Harness(this, playFixes = straightFixes(60, accuracyM = 30f))
         h.controller.beginWarmUp()
-        advanceTimeBy(5_000)
-        val warming = h.state as RecordingState.WarmingUp
-        assertThat(warming.gps.startAllowed).isFalse()
-        h.controller.start()
-        runCurrent()
-        assertThat(h.state).isInstanceOf(RecordingState.WarmingUp::class.java)
-        assertThat(h.repo.graphs.value).isEmpty()
-
-        advanceTimeBy(6_000)
+        advanceTimeBy(2_000)
         val gps = (h.state as RecordingState.WarmingUp).gps
         assertThat(gps.startAllowed).isTrue()
         assertThat(gps.weakSignalWarning).isTrue()
@@ -137,14 +129,14 @@ class DefaultRecordingControllerTest {
         assertThat(h.state).isInstanceOf(RecordingState.Recording::class.java)
     }
 
-    @Test fun noFixKeepsStartLocked() = runTest {
+    @Test fun noFixStillStarts() = runTest {
         val h = Harness(this, playFixes = emptyList())
         h.controller.beginWarmUp()
-        advanceTimeBy(30_000)
-        assertThat((h.state as RecordingState.WarmingUp).gps.startAllowed).isFalse()
+        runCurrent()
+        assertThat((h.state as RecordingState.WarmingUp).gps.startAllowed).isTrue()
         h.controller.start()
         runCurrent()
-        assertThat(h.repo.graphs.value).isEmpty()
+        assertThat(h.state).isInstanceOf(RecordingState.Recording::class.java)
     }
 
     @Test fun endWarmUpReturnsToIdle() = runTest {

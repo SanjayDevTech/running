@@ -2,35 +2,23 @@ package com.example.running.ui.record
 
 import com.example.running.core.model.GpsQuality
 import com.example.running.core.model.GpsStatus
-import com.example.running.location.WEAK_START_TIMEOUT_MILLIS
 
 /** What the pre-start GPS line says. */
 internal enum class GpsHint {
     /** No fix yet. */
     ACQUIRING,
 
-    /** A fix, but not good enough yet and the weak-signal timeout has not passed. */
-    IMPROVING,
-
-    /** Good fix: start freely. */
+    /** Good fix. */
     READY,
 
-    /** Start allowed only because of the timeout. */
+    /** A fix, but worse than GOOD: start still allowed, distance may be less accurate. */
     WEAK,
 }
 
 internal fun gpsHint(gps: GpsStatus): GpsHint = when {
     gps.quality == GpsQuality.NONE -> GpsHint.ACQUIRING
-    !gps.startAllowed -> GpsHint.IMPROVING
     gps.weakSignalWarning -> GpsHint.WEAK
     else -> GpsHint.READY
-}
-
-/** Seconds until a weak-signal start unlocks (null once allowed or without any fix). */
-internal fun secondsUntilWeakStart(gps: GpsStatus, timeoutMillis: Long = WEAK_START_TIMEOUT_MILLIS): Int? {
-    if (gps.startAllowed || gps.quality == GpsQuality.NONE) return null
-    val left = timeoutMillis - gps.waitingMillis
-    return if (left <= 0) null else ((left + 999) / 1000).toInt()
 }
 
 /** What keeps the Record screen from using GPS, shown as a banner over the map. */
@@ -51,11 +39,11 @@ internal fun locationBlock(hasPermission: Boolean, locationOn: Boolean): Locatio
 
 /**
  * Start stays tappable while location is blocked: the tap asks for the permission or shows the
- * turn-on dialog, then continues to the GPS-gated start. Otherwise it follows the gate.
+ * turn-on dialog, then continues to the start. Otherwise Start is always enabled (never GPS-gated).
  */
-internal fun startEnabled(block: LocationBlock?, gps: GpsStatus, startPending: Boolean): Boolean =
-    if (block != null) !startPending else gps.startAllowed
+internal fun startEnabled(block: LocationBlock?, startPending: Boolean): Boolean =
+    block == null || !startPending
 
-/** A Start tapped while blocked goes through once warm-up allows it. */
+/** A Start tapped while blocked goes through as soon as warm-up is running. */
 internal fun shouldAutoStart(startPending: Boolean, block: LocationBlock?, gps: GpsStatus?): Boolean =
-    startPending && block == null && gps?.startAllowed == true
+    startPending && block == null && gps != null

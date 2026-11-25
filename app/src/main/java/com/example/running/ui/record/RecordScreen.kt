@@ -134,7 +134,7 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
     val locationOn by locationOnFlow.collectAsStateWithLifecycle(initialValue = Permissions.isLocationEnabled(context))
     var locationAsked by rememberSaveable { mutableStateOf(false) }
     var startPermsAsked by rememberSaveable { mutableStateOf(false) }
-    // Start was tapped while location was blocked: carry on to the GPS-gated start once it is not.
+    // Start was tapped while location was blocked: carry on to the start once it is not.
     var startPending by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
 
@@ -231,7 +231,7 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
         }
     }
     val warmGps = (state as? RecordingState.WarmingUp)?.gps
-    LaunchedEffect(startPending, block, warmGps?.startAllowed) {
+    LaunchedEffect(startPending, block, warmGps != null) {
         if (shouldAutoStart(startPending, block, warmGps)) {
             startPending = false
             launchRun()
@@ -279,7 +279,7 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
                         permissionAsked = locationAsked,
                         accuracyOff = accuracyOff && block == null,
                         devDual = devDual,
-                        startEnabled = startEnabled(block, gps, startPending),
+                        startEnabled = startEnabled(block, startPending),
                         waitingToStart = startPending && block == null,
                         onStart = onStart,
                         onCancelStart = { startPending = false },
@@ -409,11 +409,6 @@ private fun GpsLine(gps: GpsStatus) {
     val hint = gpsHint(gps)
     val text = when (hint) {
         GpsHint.ACQUIRING -> stringResource(R.string.record_gps_acquiring)
-        GpsHint.IMPROVING -> {
-            val seconds = secondsUntilWeakStart(gps)
-            if (seconds != null) stringResource(R.string.record_gps_improving_countdown, formatAccuracy(gps.accuracyM), seconds)
-            else stringResource(R.string.record_gps_improving, formatAccuracy(gps.accuracyM))
-        }
         GpsHint.READY -> stringResource(R.string.record_gps_ready, formatAccuracy(gps.accuracyM))
         GpsHint.WEAK -> stringResource(R.string.record_gps_weak, formatAccuracy(gps.accuracyM))
     }
@@ -421,7 +416,7 @@ private fun GpsLine(gps: GpsStatus) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         StatusDot(dot)
         Spacer(Modifier.width(Spacing.s))
-        // Crossfade when the stage changes (acquiring -> improving -> ready), not on every countdown tick.
+        // Crossfade when the stage changes (acquiring -> weak -> ready), not on every accuracy change.
         AnimatedContent(
             targetState = hint to text,
             contentKey = { it.first },

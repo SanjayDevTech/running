@@ -16,7 +16,7 @@ interface RecordingController {
     /** Record screen visible and idle: start location for GPS gating. */
     fun beginWarmUp()
     fun endWarmUp()
-    /** No-op unless state is WarmingUp with startAllowed. */
+    /** No-op unless state is WarmingUp. Never GPS-gated (startAllowed is always true). */
     fun start()
     fun pause()
     fun resume()
