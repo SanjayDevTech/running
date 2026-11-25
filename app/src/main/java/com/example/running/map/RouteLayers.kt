@@ -20,6 +20,18 @@ internal class RouteLayers private constructor(
     val markers: GeoJsonSource,
     val user: GeoJsonSource,
 ) {
+    /** Sources are created with [RouteGeoJson.EMPTY]. */
+    private val lastJson = HashMap<GeoJsonSource, String>().apply {
+        listOf(route, highlight, comparison, markers, user).forEach { put(it, RouteGeoJson.EMPTY) }
+    }
+
+    /** Main thread. Hands [json] to [source] unless it already shows exactly that (no re-parse, no re-tile). */
+    fun update(source: GeoJsonSource, json: String) {
+        if (lastJson[source] == json) return
+        lastJson[source] = json
+        source.setGeoJson(json)
+    }
+
     companion object {
         private const val ROUTE = "route"
         private const val HIGHLIGHT = "route-highlight"

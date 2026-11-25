@@ -20,6 +20,68 @@ import kotlin.math.roundToInt
 /** One drawable run of consecutive route points that share a colour and a step-filled flag. */
 internal data class RouteLine(val coords: List<GeoPoint>, val argb: Int, val stepFilled: Boolean)
 
+/** A [RouteLine] as the index range points[from..to] (inclusive, at least two points). */
+internal data class LineRange(val from: Int, val to: Int, val argb: Int, val stepFilled: Boolean) {
+    fun toLine(points: List<RoutePoint>): RouteLine =
+        RouteLine((from..to).map { GeoPoint(points[it].lat, points[it].lon) }, argb, stepFilled)
+}
+
+/**
+ * A route prepared once for drawing (off the main thread): thinned to at most `maxPoints`, coloured
+ * against the full route's pace range, split into lines. [linesUpTo] gives exactly what
+ * `RouteSegments.build(route, RouteSegments.truncateToDistance(points, d), normalizer)` gives, without
+ * re-colouring the route on every draw-in frame.
+ */
+internal class RouteDrawing private constructor(
+    val points: List<RoutePoint>,
+    private val ranges: List<LineRange>,
+) {
+    val start: GeoPoint get() = GeoPoint(points.first().lat, points.first().lon)
+    val end: GeoPoint get() = GeoPoint(points.last().lat, points.last().lon)
+    val totalDistanceM: Double get() = points.last().distanceM
+
+    val lines: List<RouteLine> by lazy { ranges.map { it.toLine(points) } }
+
+    /** The lines up to [distanceM] on the route's distance axis, the cut point interpolated. */
+    fun linesUpTo(distanceM: Double): List<RouteLine> {
+        if (distanceM >= points.last().distanceM) return lines
+        if (distanceM <= points.first().distanceM) return emptyList()
+        // First point strictly past the cut (distances never decrease), as truncateToDistance picks it.
+        var lo = 1
+        var hi = points.lastIndex
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (points[mid].distanceM > distanceM) hi = mid else lo = mid + 1
+        }
+        val idx = lo
+        val a = points[idx - 1]
+        val b = points[idx]
+        val span = b.distanceM - a.distanceM
+        val f = if (span <= 0.0) 1.0 else (distanceM - a.distanceM) / span
+        val cut = interpolate(GeoPoint(a.lat, a.lon), GeoPoint(b.lat, b.lon), f)
+        val out = ArrayList<RouteLine>()
+        for (r in ranges) {
+            if (r.from >= idx) break
+            if (r.to < idx) {
+                out += r.toLine(points)
+            } else {
+                out += RouteLine((r.from until idx).map { GeoPoint(points[it].lat, points[it].lon) } + cut, r.argb, r.stepFilled)
+                break
+            }
+        }
+        return out
+    }
+
+    companion object {
+        /** Null when the route has fewer than two points. */
+        fun of(route: MapRoute, maxPoints: Int): RouteDrawing? {
+            if (route.points.size < 2) return null
+            val points = RouteSegments.decimate(route.points, maxPoints)
+            return RouteDrawing(points, RouteSegments.ranges(route, points, PaceNormalizer.of(route)))
+        }
+    }
+}
+
 /**
  * Normalises pace to 0 (fast) .. 1 (slow) against the run's own 5th-95th percentile pace, widened to
  * at least [MIN_HALF_SPREAD_SEC_PER_KM] either side of the median pace (architecture.md §3.4). Runs
@@ -83,15 +145,21 @@ internal object RouteSegments {
         route: MapRoute,
         points: List<RoutePoint> = route.points,
         normalizer: PaceNormalizer = PaceNormalizer.of(route),
-    ): List<RouteLine> {
+    ): List<RouteLine> = ranges(route, points, normalizer).map { it.toLine(points) }
+
+    /**
+     * The lines of [build] as index ranges into [points]: line k draws points[from..to]. Colours depend
+     * only on a point and the ones before it, so the ranges of any prefix of [points] are these ranges
+     * cut at the prefix end (what [RouteDrawing] relies on for the draw-in).
+     */
+    fun ranges(route: MapRoute, points: List<RoutePoint>, normalizer: PaceNormalizer): List<LineRange> {
         if (points.size < 2) return emptyList()
-        val lines = ArrayList<RouteLine>()
-        var coords = ArrayList<GeoPoint>()
+        val out = ArrayList<LineRange>()
+        var from = 0
         var curArgb = 0
         var curStep = false
         var lastT = 0.5
         for (i in 1 until points.size) {
-            val a = points[i - 1]
             val b = points[i]
             val step = b.stepFilled
             val argb = when {
@@ -106,17 +174,16 @@ internal object RouteSegments {
                     }
                 }
             }
-            if (coords.isEmpty()) {
-                coords.add(GeoPoint(a.lat, a.lon)); curArgb = argb; curStep = step
+            if (i == 1) {
+                curArgb = argb; curStep = step
             } else if (argb != curArgb || step != curStep) {
-                lines.add(RouteLine(coords, curArgb, curStep))
-                coords = arrayListOf(GeoPoint(a.lat, a.lon))
+                out.add(LineRange(from, i - 1, curArgb, curStep))
+                from = i - 1
                 curArgb = argb; curStep = step
             }
-            coords.add(GeoPoint(b.lat, b.lon))
         }
-        if (coords.size >= 2) lines.add(RouteLine(coords, curArgb, curStep))
-        return lines
+        out.add(LineRange(from, points.lastIndex, curArgb, curStep))
+        return out
     }
 
     /** Points up to [distanceM] (route's own distance axis) with the cut point interpolated. */

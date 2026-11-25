@@ -200,4 +200,85 @@ class RouteGeometryTest {
         val g = root.getValue("features").jsonArray[0].jsonObject.getValue("geometry").jsonObject
         assertThat(g.getValue("type").jsonPrimitive.content).isEqualTo("Point")
     }
+
+    /** A varied route: pace surges, missing paces, step-filled stretches, segment kinds, a repeated distance. */
+    private fun variedRoute(n: Int, coloring: RouteColoring): MapRoute {
+        val rnd = java.util.Random(7)
+        var d = 0.0
+        val kinds = listOf(SegmentKind.RUN, SegmentKind.WALK, SegmentKind.STOP, null)
+        val pts = (0 until n).map { i ->
+            if (i != 40) d += rnd.nextDouble() * 6.0 // point 40 repeats the previous distance
+            RoutePoint(
+                lat = 12.0 + i * 0.00005 + rnd.nextDouble() * 1e-5, lon = 77.0 + rnd.nextDouble() * 1e-4, distanceM = d,
+                paceSecPerKm = if (i % 17 == 0) null else 240.0 + rnd.nextInt(300),
+                stepFilled = (i / 25) % 4 == 3,
+                segmentKind = kinds[(i / 30) % kinds.size],
+            )
+        }
+        return MapRoute(pts, coloring, tintArgb = if (coloring == RouteColoring.SOLID) Walk.toArgb() else null)
+    }
+
+    /** The pre-range implementation of RouteSegments.build, kept as the reference. */
+    private fun legacyBuild(route: MapRoute, points: List<RoutePoint>, normalizer: PaceNormalizer): List<RouteLine> {
+        if (points.size < 2) return emptyList()
+        val lines = ArrayList<RouteLine>()
+        var coords = ArrayList<GeoPoint>()
+        var curArgb = 0
+        var curStep = false
+        var lastT = 0.5
+        for (i in 1 until points.size) {
+            val a = points[i - 1]
+            val b = points[i]
+            val step = b.stepFilled
+            val argb = when {
+                step -> RouteColors.stepFilledArgb
+                else -> when (route.coloring) {
+                    RouteColoring.SOLID -> route.tintArgb ?: Accent.toArgb()
+                    RouteColoring.SEGMENT_KIND -> RouteColors.kindArgb(b.segmentKind)
+                    RouteColoring.PACE -> {
+                        val t = normalizer.normalize(b.paceSecPerKm)
+                        if (t != null) lastT = t
+                        RouteColors.paceArgb(RouteColors.quantize(lastT))
+                    }
+                }
+            }
+            if (coords.isEmpty()) {
+                coords.add(GeoPoint(a.lat, a.lon)); curArgb = argb; curStep = step
+            } else if (argb != curArgb || step != curStep) {
+                lines.add(RouteLine(coords, curArgb, curStep))
+                coords = arrayListOf(GeoPoint(a.lat, a.lon))
+                curArgb = argb; curStep = step
+            }
+            coords.add(GeoPoint(b.lat, b.lon))
+        }
+        if (coords.size >= 2) lines.add(RouteLine(coords, curArgb, curStep))
+        return lines
+    }
+
+    @Test
+    fun rangeBasedBuildMatchesTheLegacyBuild() {
+        for (coloring in RouteColoring.entries) {
+            val r = variedRoute(500, coloring)
+            assertThat(RouteSegments.build(r)).isEqualTo(legacyBuild(r, r.points, PaceNormalizer.of(r)))
+        }
+    }
+
+    @Test
+    fun drawingPrefixMatchesTruncateThenBuild() {
+        for (coloring in RouteColoring.entries) {
+            val r = variedRoute(500, coloring)
+            val maxPoints = 180 // also exercises the thinning
+            val drawing = RouteDrawing.of(r, maxPoints)!!
+            val points = RouteSegments.decimate(r.points, maxPoints)
+            val normalizer = PaceNormalizer.of(r)
+            assertThat(drawing.lines).isEqualTo(legacyBuild(r, points, normalizer))
+            val total = points.last().distanceM
+            val cuts = (0..400).map { total * it / 400.0 } + listOf(-1.0, points[40].distanceM, total + 1.0)
+            for (d in cuts) {
+                val expected = legacyBuild(r, RouteSegments.truncateToDistance(points, d), normalizer)
+                assertThat(drawing.linesUpTo(d)).isEqualTo(expected)
+            }
+        }
+        assertThat(RouteDrawing.of(route(pt(0)), 100)).isNull()
+    }
 }
