@@ -1829,7 +1829,7 @@ through the BOM. compileSdk 37 minor 2 works.
 12. Signing key generated exactly per §7 (RSA 4096, 36500 days, PKCS12, `CN=Running GitHub Public Release`)
     — the same parameters and file/alias/password convention as food-tracker, rather than the Run-1 task
     text's RSA 2048 / 10000 days / `CN=Running`. It is a new key pair, distinct from food-tracker's
-    (SHA-256 `EE:A6:59:61:…:A5:29:F2:18` vs food-tracker `C0:07:52:08:…:DB:60:D0:05`).
+    (SHA-256 `C0:07:52:08:…:DB:60:D0:05` vs food-tracker `EE:A6:59:61:…:A5:29:F2:18`).
 13. Launcher icon (foundation patch): adaptive icon in `mipmap-anydpi/ic_launcher.xml` and
     `ic_launcher_round.xml` (minSdk 31, so no density PNG/WebP fallbacks). Layers are vectors:
     `drawable/ic_launcher_background.xml` (`@color/black`, true black), `ic_launcher_foreground.xml`
