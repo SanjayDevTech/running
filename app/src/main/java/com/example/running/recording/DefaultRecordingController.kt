@@ -437,7 +437,9 @@ internal class DefaultRecordingController(
                 )
                 s.routeIfChanged()?.let { _liveRoute.value = it }
             }
-            warmingUp -> _state.value = RecordingState.WarmingUp(gate.status(nanos))
+            // waitingMillis grows every tick but nothing shows it since Start stopped waiting for GPS
+            // (b7a33c1): zeroed, so the ticker republishes only when the GPS status itself changes.
+            warmingUp -> _state.value = RecordingState.WarmingUp(gate.status(nanos).copy(waitingMillis = 0))
         }
     }
 

@@ -139,6 +139,15 @@ class DefaultRecordingControllerTest {
         assertThat(h.state).isInstanceOf(RecordingState.Recording::class.java)
     }
 
+    @Test fun warmUpWithoutGpsChangesIsNotRepublishedEverySecond() = runTest {
+        val h = Harness(this, playFixes = emptyList())
+        val seen = mutableListOf<RecordingState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { h.controller.state.toList(seen) }
+        h.controller.beginWarmUp()
+        advanceTimeBy(10_000)
+        assertThat(seen.filterIsInstance<RecordingState.WarmingUp>()).hasSize(1)
+    }
+
     @Test fun endWarmUpReturnsToIdle() = runTest {
         val h = Harness(this)
         h.controller.beginWarmUp()

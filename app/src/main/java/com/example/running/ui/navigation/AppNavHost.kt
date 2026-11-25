@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,6 +31,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.navigation.toRoute
 import com.example.running.core.model.RecordingEvent
 import com.example.running.core.model.RecordingState
@@ -73,12 +76,14 @@ fun AppNavHost(
     navController: NavHostController = rememberNavController(),
 ) {
     val container = LocalAppContainer.current
-    val recordingState by container.recording.controller.state.collectAsStateWithLifecycle()
+    // Only whether a run is active: the full state changes every second while recording.
+    val controllerState = container.recording.controller.state
+    val recordingActive by remember(controllerState) {
+        controllerState.map { it.isActiveRun() }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = controllerState.value.isActiveRun())
     val backStack by navController.currentBackStackEntryAsState()
     val currentTab = backStack?.destination.tab()
-    val fullScreenRecording = currentTab == Tab.Record &&
-        (recordingState is RecordingState.Recording || recordingState is RecordingState.Saving)
-    val recordingActive = recordingState is RecordingState.Recording || recordingState is RecordingState.Saving
+    val fullScreenRecording = currentTab == Tab.Record && recordingActive
     val showBottomBar = currentTab != null && !fullScreenRecording
 
     // RecordScreen opens the saved run itself; a run finished from the notification while another
@@ -181,6 +186,8 @@ fun AppNavHost(
  * gesture and the back button identical. (The Int is the swipe edge; unused.)
  */
 private fun NavDestination.isPeerRoot(): Boolean = tab() != null || hasRoute(OnboardingRoute::class)
+
+private fun RecordingState.isActiveRun(): Boolean = this is RecordingState.Recording || this is RecordingState.Saving
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.isPeerSwitch(): Boolean =
     initialState.destination.isPeerRoot() && targetState.destination.isPeerRoot()
