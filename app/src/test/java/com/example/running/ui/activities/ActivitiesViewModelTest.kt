@@ -7,6 +7,9 @@ import com.example.running.core.model.ActivityType
 import com.example.running.testing.FakeClock
 import com.example.running.testing.FakeRunRepository
 import com.example.running.testing.MainDispatcherRule
+import com.example.running.testing.TestAppDispatchers
+import com.example.running.core.model.MapRoute
+import com.example.running.core.util.LruMap
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -31,7 +34,7 @@ class ActivitiesViewModelTest {
         )
     }
 
-    private fun vm() = ActivitiesViewModel(repo, clock)
+    private fun vm(cacheSize: Int = 100) = ActivitiesViewModel(repo, clock, TestAppDispatchers(mainRule.testDispatcher), cacheSize)
 
     @Test fun weekStripCountsOnlyThisWeekAndMarksToday() = runTest(mainRule.testDispatcher) {
         seed("a", at(23, 7))   // Mon this week
@@ -78,11 +81,37 @@ class ActivitiesViewModelTest {
         }
     }
 
-    @Test fun routeForIsCached() = runTest(mainRule.testDispatcher) {
+    @Test fun thumbnailIsCached() = runTest(mainRule.testDispatcher) {
         seed("a", at(25, 7))
         val model = vm()
-        val first = model.routeFor("a")
+        val first = model.thumbnailFor("a")
         assertThat(first).isNotNull()
-        assertThat(model.routeFor("a")).isSameInstanceAs(first)
+        assertThat(model.thumbnailFor("a")).isSameInstanceAs(first)
+    }
+
+    @Test fun thumbnailsAreThinAndTheCacheIsBounded() = runTest(mainRule.testDispatcher) {
+        val ids = (1..6).map { "r$it" }
+        ids.forEachIndexed { i, id -> seed(id, at(18 + i, 7), km = 12.0) } // ~12 km: far more than 240 points
+        val model = vm(cacheSize = 4)
+        ids.forEach { id ->
+            val t = model.thumbnailFor(id)!!
+            val full = MapRoute.fromTrackPoints(repo.getFilteredPoints(id))
+            assertThat(full.points.size).isGreaterThan(240)
+            // Line ends repeat one point each, so at most 240 + lines - 1 coordinates.
+            assertThat(t.lines.sumOf { it.coords.size }).isAtMost(240 + t.lines.size - 1)
+            assertThat(t.bounds).isEqualTo(full.bounds) // bounds of the full route, not of the thinned one
+        }
+        assertThat(model.cachedThumbnails).isEqualTo(4)
+        assertThat(model.thumbnailFor("missing")).isNull() // nothing to draw: cached as null
+        assertThat(model.cachedThumbnails).isEqualTo(4)
+    }
+
+    @Test fun lruMapDropsTheLeastRecentlyUsed() {
+        val m = LruMap<String, Int?>(2)
+        m["a"] = 1
+        m["b"] = null
+        m["a"] // reading a makes b the eldest
+        m["c"] = 3
+        assertThat(m.keys).containsExactly("a", "c")
     }
 }

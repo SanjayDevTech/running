@@ -28,9 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.running.R
 import com.example.running.core.model.ActivityFilter
-import com.example.running.core.model.MapRoute
 import com.example.running.di.appViewModel
 import com.example.running.map.RouteThumbnail
+import com.example.running.map.ThumbnailRoute
 import com.example.running.ui.components.ActivityFilterChips
 import com.example.running.ui.components.ActivityTypeIcon
 import com.example.running.ui.components.AppCard
@@ -53,7 +53,7 @@ import com.example.running.ui.theme.Spacing
 /** CONTRACT(D). Public signature frozen (architecture.md §3.8). */
 @Composable
 fun ActivitiesScreen(onOpenRun: (runId: String) -> Unit) {
-    val vm = appViewModel { c -> ActivitiesViewModel(c.runRepository, c.core.clock) }
+    val vm = appViewModel { c -> ActivitiesViewModel(c.runRepository, c.core.clock, c.core.dispatchers) }
     val state by vm.state.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize().background(Black)) {
@@ -94,8 +94,8 @@ fun ActivitiesScreen(onOpenRun: (runId: String) -> Unit) {
                 ) {
                     state.week?.let { week -> item(key = "week") { WeekStrip(week, listItemMotion()) } }
                     items(state.cards, key = { it.id }) { card ->
-                        val route by produceState<MapRoute?>(initialValue = null, card.id) { value = vm.routeFor(card.id) }
-                        RunCard(card, route, onClick = { onOpenRun(card.id) }, modifier = listItemMotion())
+                        val thumbnail by produceState<ThumbnailRoute?>(initialValue = null, card.id) { value = vm.thumbnailFor(card.id) }
+                        RunCard(card, thumbnail, onClick = { onOpenRun(card.id) }, modifier = listItemMotion())
                     }
                 }
             }
@@ -155,7 +155,7 @@ private fun WeekStrip(week: WeekSummaryUi, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun RunCard(card: RunCardUi, thumbnail: ThumbnailRoute?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     AppCard(modifier, onClick = onClick, verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
             ActivityTypeIcon(card.type, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -172,10 +172,9 @@ private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit, modi
             ),
             size = StatSize.M,
         )
-        if (route != null) {
+        if (thumbnail != null) {
             RouteThumbnail(
-                route = route,
-                cacheKey = card.id,
+                thumbnail = thumbnail,
                 modifier = Modifier.fillMaxWidth().height(Sizes.thumbnailHeight).clip(RoundedCornerShape(Radius.sm)),
             )
         }
