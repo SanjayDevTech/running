@@ -1,6 +1,11 @@
 package com.example.running.ui.rundetail
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +74,7 @@ import com.example.running.ui.components.charts.AppLineChart
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Danger
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised3
@@ -92,23 +98,33 @@ fun RunDetailScreen(runId: String, onBack: () -> Unit, onOpenDevCompare: (runId:
     }
     val state by vm.state.collectAsStateWithLifecycle()
 
-    when (val s = state) {
-        RunDetailUiState.Loading -> Box(Modifier.fillMaxSize().background(Black))
-        RunDetailUiState.NotFound -> Column(Modifier.fillMaxSize().background(Black)) {
-            AppTopBar(title = stringResource(R.string.detail_title), onBack = onBack)
-            EmptyState(
-                title = stringResource(R.string.detail_not_found_title),
-                body = stringResource(R.string.detail_not_found_body),
+    // Loading -> content (or not found) crossfades in place; edits inside the content do not re-animate.
+    AnimatedContent(
+        targetState = state,
+        // Opaque underneath, or the crossfade lets the screen below show through during the push slide.
+        modifier = Modifier.fillMaxSize().background(Black),
+        contentKey = { it::class },
+        transitionSpec = { Motion.crossfade() },
+        label = "runDetail",
+    ) { s ->
+        when (s) {
+            RunDetailUiState.Loading -> Box(Modifier.fillMaxSize().background(Black))
+            RunDetailUiState.NotFound -> Column(Modifier.fillMaxSize().background(Black)) {
+                AppTopBar(title = stringResource(R.string.detail_title), onBack = onBack)
+                EmptyState(
+                    title = stringResource(R.string.detail_not_found_title),
+                    body = stringResource(R.string.detail_not_found_body),
+                )
+            }
+            is RunDetailUiState.Content -> DetailContent(
+                content = s.content,
+                onBack = onBack,
+                onRename = vm::rename,
+                onSetType = vm::setType,
+                onDelete = { vm.delete(onBack) },
+                onOpenDevCompare = { onOpenDevCompare(runId) },
             )
         }
-        is RunDetailUiState.Content -> DetailContent(
-            content = s.content,
-            onBack = onBack,
-            onRename = vm::rename,
-            onSetType = vm::setType,
-            onDelete = { vm.delete(onBack) },
-            onOpenDevCompare = { onOpenDevCompare(runId) },
-        )
     }
 }
 
@@ -268,7 +284,7 @@ private fun DetailContent(
             }
         }
 
-        if (mapExpanded) {
+        AnimatedVisibility(mapExpanded, enter = fadeIn(Motion.state()), exit = fadeOut(Motion.state())) {
             Box(Modifier.fillMaxSize().background(Black)) {
                 RouteMap(
                     route = content.geometry.route,
@@ -318,11 +334,12 @@ private fun SplitsTable(rows: List<SplitRowUi>, selectedIndex: Int?, onSelect: (
             Text(stringResource(R.string.detail_splits_elev).uppercase(), style = AppText.eyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(0.18f))
         }
         rows.forEach { r ->
+            val tint by animateColorAsState(if (selectedIndex == r.index) Raised4 else Black, Motion.tint(), label = "splitTint")
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(Radius.sm))
-                    .background(if (selectedIndex == r.index) Raised4 else Black)
+                    .background(tint)
                     .clickable { onSelect(r.index) }
                     .heightIn(min = Sizes.touchTarget)
                     .padding(vertical = Spacing.xs),

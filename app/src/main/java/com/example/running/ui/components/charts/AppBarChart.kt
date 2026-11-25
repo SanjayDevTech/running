@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Hairline
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Raised4
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.TextSecondary
@@ -27,7 +28,6 @@ import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvi
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.ColumnCartesianLayerModel
 import com.patrykandpatrick.vico.compose.cartesian.data.columnModel
-import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import com.patrykandpatrick.vico.compose.cartesian.layer.ColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.marker.CartesianMarker
@@ -36,6 +36,7 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 
 /**
  * The app's one bar chart (Vico). The selected bar is drawn in [color]; the others in a raised grey,
@@ -124,6 +125,8 @@ fun AppBarChart(
             markerVisibilityListener = if (onSelect != null) listener else null,
         ),
         modelProducer = producer,
+        // Value changes (another filter, metric or run) interpolate like a meter (Motion.VALUE_MS).
+        animationSpec = Motion.value(),
         modifier = modifier.fillMaxWidth().height(height),
         scrollState = rememberVicoScrollState(scrollEnabled = false),
     )

@@ -1,5 +1,6 @@
 package com.example.running.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
@@ -17,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Danger
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Outline
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Sizes
@@ -103,12 +106,25 @@ fun CircleIconButton(
     contentColor: Color = TextPrimary,
     enabled: Boolean = true,
 ) {
+    // Enabled/disabled and colour swaps (Start unlocking, Pause -> Resume) fade instead of snapping.
+    val defaults = IconButtonDefaults.filledIconButtonColors(containerColor = containerColor, contentColor = contentColor)
+    val container by animateColorAsState(
+        if (enabled) containerColor else defaults.disabledContainerColor, Motion.state(), label = "circleContainer",
+    )
+    val content by animateColorAsState(
+        if (enabled) contentColor else defaults.disabledContentColor, Motion.state(), label = "circleContent",
+    )
     FilledIconButton(
         onClick = onClick,
         modifier = modifier.sizeIn(minWidth = size, minHeight = size),
         enabled = enabled,
         shape = CircleShape,
-        colors = IconButtonDefaults.filledIconButtonColors(containerColor = containerColor, contentColor = contentColor),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = container,
+            contentColor = content,
+            disabledContainerColor = container,
+            disabledContentColor = content,
+        ),
     ) {
         Icon(icon, contentDescription = contentDescription, modifier = Modifier.padding(Spacing.xs).size(size * 0.4f))
     }

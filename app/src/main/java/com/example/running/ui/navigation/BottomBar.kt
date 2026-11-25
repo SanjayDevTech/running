@@ -1,5 +1,6 @@
 package com.example.running.ui.navigation
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -24,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.running.R
 import com.example.running.ui.theme.Accent
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Raised2
 import com.example.running.ui.theme.TextSecondary
@@ -46,15 +48,8 @@ fun BottomBar(selected: Tab?, recordingActive: Boolean, onSelect: (Tab) -> Unit)
                 icon = {
                     Box {
                         Icon(tab.icon, contentDescription = null)
-                        if (tab == Tab.Record && recordingActive) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 4.dp, y = (-2).dp)
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Accent)
-                            )
+                        if (tab == Tab.Record) {
+                            RecordingDot(recordingActive, Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-2).dp))
                         }
                     }
                 },
@@ -71,3 +66,10 @@ fun BottomBar(selected: Tab?, recordingActive: Boolean, onSelect: (Tab) -> Unit)
     }
 }
 
+/** Accent dot on the Record tab while a run is live; pops in like a badge. */
+@Composable
+private fun RecordingDot(visible: Boolean, modifier: Modifier) {
+    AnimatedVisibility(visible = visible, enter = Motion.badgeIn, exit = Motion.badgeOut, modifier = modifier) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(Accent))
+    }
+}

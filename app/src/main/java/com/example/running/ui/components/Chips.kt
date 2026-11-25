@@ -1,5 +1,6 @@
 package com.example.running.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -15,6 +16,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +29,7 @@ import com.example.running.core.model.ActivityType
 import com.example.running.core.model.GpsQuality
 import com.example.running.core.model.LocationEngine
 import com.example.running.ui.theme.AppText
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Outline
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised2
@@ -45,6 +48,7 @@ fun <T> ChoiceChips(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = rememberAppHaptics()
     Row(
         modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(Spacing.s),
@@ -52,17 +56,28 @@ fun <T> ChoiceChips(
         options.forEach { option ->
             val isSelected = option == selected
             val shape = RoundedCornerShape(Radius.pill)
+            // Selection is a tint, so it fades like one (Motion.TINT_MS).
+            val fill by animateColorAsState(if (isSelected) Raised4 else Raised2, Motion.tint(), label = "chipFill")
+            val border by animateColorAsState(if (isSelected) TextSecondary else Outline, Motion.tint(), label = "chipBorder")
+            val text by animateColorAsState(if (isSelected) TextPrimary else TextSecondary, Motion.tint(), label = "chipText")
             Box(
                 Modifier
                     .heightIn(min = 36.dp)
                     .clip(shape)
-                    .background(if (isSelected) Raised4 else Raised2)
-                    .border(1.dp, if (isSelected) TextSecondary else Outline, shape)
-                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(option) })
+                    .background(fill)
+                    .border(1.dp, border, shape)
+                    .selectable(
+                        selected = isSelected,
+                        role = Role.Tab,
+                        onClick = {
+                            if (!isSelected) haptics.light()
+                            onSelect(option)
+                        },
+                    )
                     .padding(horizontal = Spacing.l, vertical = Spacing.s),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label(option), style = AppText.label, color = if (isSelected) TextPrimary else TextSecondary)
+                Text(label(option), style = AppText.label, color = text)
             }
         }
     }

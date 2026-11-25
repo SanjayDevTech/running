@@ -1,5 +1,7 @@
 package com.example.running.ui.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,12 +24,14 @@ import com.example.running.ui.components.AppDivider
 import com.example.running.ui.components.StatusDot
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Sizes
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Spacing
 
 /** Raised card that groups rows (rows pad themselves); rows are separated by [RowDivider]. */
 @Composable
 internal fun SettingsCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) =
-    AppCard(modifier, contentPadding = PaddingValues(0.dp)) { content() }
+    // Rows coming and going (an action, a reset row, a deleted backup) resize the card smoothly.
+    AppCard(modifier.animateContentSize(Motion.state()), contentPadding = PaddingValues(0.dp)) { content() }
 
 @Composable
 internal fun RowDivider() = AppDivider(Modifier.padding(horizontal = Spacing.l))
@@ -51,7 +56,10 @@ internal fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.m),
     ) {
-        if (statusColor != null) StatusDot(statusColor)
+        if (statusColor != null) {
+            val dot by animateColorAsState(statusColor, Motion.state(), label = "settingsStatus")
+            StatusDot(dot)
+        }
         Column(Modifier.weight(1f)) {
             Text(title, style = AppText.body, color = MaterialTheme.colorScheme.onSurface)
             if (summary != null) Text(summary, style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant)

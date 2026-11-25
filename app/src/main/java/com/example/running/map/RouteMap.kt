@@ -1,7 +1,6 @@
 package com.example.running.map
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,6 +40,7 @@ import com.example.running.core.model.MapRoute
 import com.example.running.core.model.RouteMapMode
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.Danger
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Raised1
 import com.example.running.ui.theme.Success
 import com.example.running.ui.theme.Walk
@@ -53,7 +53,6 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
-private const val DRAW_IN_MILLIS = 1200
 private const val LIVE_ZOOM = 17.0
 private const val MAX_FIT_ZOOM = 17.5
 private const val MIN_FIT_SPAN_METERS = 60.0
@@ -171,7 +170,8 @@ fun RouteMap(
         if (animateDrawIn && mode != RouteMapMode.LIVE) {
             val total = points.last().distanceM
             val anim = Animatable(0f)
-            anim.animateTo(1f, tween(DRAW_IN_MILLIS, easing = LinearOutSlowInEasing)) {
+            // Starts once the Run detail push slide has landed, then eases like the rest of the app.
+            anim.animateTo(1f, tween(Motion.DRAW_IN_MS, delayMillis = Motion.DRAW_IN_DELAY_MS, easing = Motion.Easing)) {
                 push(RouteSegments.truncateToDistance(points, total * value))
             }
         }

@@ -11,10 +11,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Hairline
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.TextPrimary
@@ -38,10 +38,11 @@ import com.patrykandpatrick.vico.compose.cartesian.marker.rememberDefaultCartesi
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.Insets
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
 import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.Insets
+import kotlin.math.abs
 
 /**
  * The app's one line chart (Vico). D and E use this; nobody else sets up Vico.
@@ -168,6 +169,8 @@ fun AppLineChart(
             getXStep = { grid.step },
         ),
         modelProducer = producer,
+        // Value changes (another filter, metric or run) interpolate like a meter (Motion.VALUE_MS).
+        animationSpec = Motion.value(),
         modifier = modifier.fillMaxWidth().height(height),
         scrollState = rememberVicoScrollState(scrollEnabled = false),
     )

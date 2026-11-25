@@ -1,8 +1,10 @@
 package com.example.running.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,7 +40,9 @@ import com.example.running.ui.components.ChoiceChips
 import com.example.running.ui.components.PrimaryButton
 import com.example.running.ui.components.SecondaryButton
 import com.example.running.ui.components.SectionHeader
+import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.AppText
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Danger
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Spacing
@@ -62,7 +66,7 @@ fun BackupScreen(onBack: () -> Unit) {
     val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { pendingRestore = it }
 
     val folder = ui.settings.backup.folderUri
-    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(Black).navigationBarsPadding()) {
         AppTopBar(stringResource(R.string.backup_title), onBack = onBack)
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter),
@@ -111,14 +115,21 @@ fun BackupScreen(onBack: () -> Unit) {
                 Modifier.fillMaxWidth(), enabled = !ui.busy,
             )
 
-            ui.message?.let { m ->
-                Text(
-                    messageText(m), style = AppText.body,
-                    color = if (m is BackupMessage.Failed) Danger else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(vertical = Spacing.s),
-                )
+            // Status lines open and fold in place (Motion.appear); the last message stays while it folds.
+            var lastMessage by remember { mutableStateOf(ui.message) }
+            ui.message?.let { lastMessage = it }
+            AnimatedVisibility(ui.message != null, enter = Motion.appear, exit = Motion.disappear) {
+                lastMessage?.let { m ->
+                    Text(
+                        messageText(m), style = AppText.body,
+                        color = if (m is BackupMessage.Failed) Danger else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(vertical = Spacing.s),
+                    )
+                }
             }
-            if (ui.busy) Text(stringResource(R.string.backup_working), style = AppText.bodyS)
+            AnimatedVisibility(ui.busy, enter = Motion.appear, exit = Motion.disappear) {
+                Text(stringResource(R.string.backup_working), style = AppText.bodyS)
+            }
 
             SectionHeader(stringResource(R.string.backup_saved_backups))
             if (ui.files.isEmpty()) {

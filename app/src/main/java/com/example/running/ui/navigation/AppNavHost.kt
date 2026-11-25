@@ -1,5 +1,14 @@
 package com.example.running.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -35,6 +45,7 @@ import com.example.running.ui.settings.BackupScreen
 import com.example.running.ui.settings.ProfileEditScreen
 import com.example.running.ui.settings.SettingsScreen
 import com.example.running.ui.theme.Black
+import com.example.running.ui.theme.Motion
 
 private fun NavDestination?.tab(): Tab? =
     this?.hierarchy?.firstNotNullOfOrNull { d -> Tab.entries.firstOrNull { d.hasRoute(it.route::class) } }
@@ -90,13 +101,26 @@ fun AppNavHost(
         containerColor = Black,
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            if (showBottomBar) BottomBar(currentTab, recordingActive) { navController.navigateToTab(it) }
+            // Slides away with the Record screen going full-screen (and with pushed screens).
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = fadeIn(Motion.state()) + expandVertically(Motion.state()),
+                exit = fadeOut(Motion.state()) + shrinkVertically(Motion.state()),
+            ) {
+                BottomBar(currentTab, recordingActive) { navController.navigateToTab(it) }
+            }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             NavHost(
                 navController = navController,
                 startDestination = if (onboardingComplete) RecordRoute else OnboardingRoute,
+                enterTransition = navEnter,
+                exitTransition = navExit,
+                popEnterTransition = navPopEnter,
+                popExitTransition = navPopExit,
+                predictivePopEnterTransition = navPredictivePopEnter,
+                predictivePopExitTransition = navPredictivePopExit,
             ) {
                 composable<OnboardingRoute> {
                     OnboardingScreen(onFinished = {
@@ -144,3 +168,41 @@ fun AppNavHost(
         }
     }
 }
+
+/*
+ * One set of transitions, chosen per pair of entries (gym-tracker's AppNav). Tab <-> tab is a
+ * fade-through: 90 ms out, then 210 ms in, so the outgoing tab is gone before the incoming one starts;
+ * peers do not slide, a slide says "deeper" or "back". Onboarding -> Record replaces the root, so it
+ * fades through too. Everything else is a push or pop: a 300 ms slide with the screen underneath
+ * moving a third of the way (parallax).
+ *
+ * The predictivePop* pair matters as much as pop*: a pop driven by the predictive-back gesture uses its
+ * own transitions, which default to a fade + scale-out. Pointing them at the same motion keeps the
+ * gesture and the back button identical. (The Int is the swipe edge; unused.)
+ */
+private fun NavDestination.isPeerRoot(): Boolean = tab() != null || hasRoute(OnboardingRoute::class)
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isPeerSwitch(): Boolean =
+    initialState.destination.isPeerRoot() && targetState.destination.isPeerRoot()
+
+private val navEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+    if (isPeerSwitch()) Motion.fadeThroughIn else slideIntoContainer(SlideDirection.Start, Motion.nav())
+}
+
+private val navExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+    if (isPeerSwitch()) Motion.fadeThroughOut else slideOutOfContainer(SlideDirection.Start, Motion.nav()) { it / 3 }
+}
+
+private val navPopEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+    if (isPeerSwitch()) Motion.fadeThroughIn else slideIntoContainer(SlideDirection.End, Motion.nav()) { it / 3 }
+}
+
+private val navPopExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+    if (isPeerSwitch()) Motion.fadeThroughOut else slideOutOfContainer(SlideDirection.End, Motion.nav())
+}
+
+private val navPredictivePopEnter:
+    AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> EnterTransition = { navPopEnter() }
+
+private val navPredictivePopExit:
+    AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> ExitTransition = { navPopExit() }

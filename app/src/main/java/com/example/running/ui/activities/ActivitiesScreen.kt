@@ -1,5 +1,7 @@
 package com.example.running.ui.activities
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +43,8 @@ import com.example.running.ui.components.StatSize
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
+import com.example.running.ui.theme.Motion
+import com.example.running.ui.theme.listItemMotion
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised4
 import com.example.running.ui.theme.Sizes
@@ -59,42 +63,52 @@ fun ActivitiesScreen(onOpenRun: (runId: String) -> Unit) {
             onSelect = vm::setFilter,
             modifier = Modifier.padding(horizontal = Spacing.gutter),
         )
-        when {
-            state.loading -> Box(Modifier.fillMaxSize())
-            state.cards.isEmpty() -> {
-                if (state.filter == ActivityFilter.ALL) {
-                    EmptyState(
-                        title = stringResource(R.string.history_empty_title),
-                        body = stringResource(R.string.history_empty_body),
-                    )
-                } else {
-                    EmptyState(
-                        title = stringResource(R.string.history_empty_filtered_title),
-                        body = stringResource(R.string.history_empty_filtered_body),
-                    )
+        // Loading, empty and the list fade through; the filter changing rows inside the list does not.
+        val body = when {
+            state.loading -> ListBody.LOADING
+            state.cards.isEmpty() -> ListBody.EMPTY
+            else -> ListBody.LIST
+        }
+        AnimatedContent(body, transitionSpec = { Motion.fadeThrough() }, label = "activitiesBody") { b ->
+            when (b) {
+                ListBody.LOADING -> Box(Modifier.fillMaxSize())
+                ListBody.EMPTY -> {
+                    if (state.filter == ActivityFilter.ALL) {
+                        EmptyState(
+                            title = stringResource(R.string.history_empty_title),
+                            body = stringResource(R.string.history_empty_body),
+                        )
+                    } else {
+                        EmptyState(
+                            title = stringResource(R.string.history_empty_filtered_title),
+                            body = stringResource(R.string.history_empty_filtered_body),
+                        )
+                    }
                 }
-            }
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = Spacing.gutter, vertical = Spacing.l,
-                ),
-                verticalArrangement = Arrangement.spacedBy(Spacing.m),
-            ) {
-                state.week?.let { week -> item(key = "week") { WeekStrip(week) } }
-                items(state.cards, key = { it.id }) { card ->
-                    val route by produceState<MapRoute?>(initialValue = null, card.id) { value = vm.routeFor(card.id) }
-                    RunCard(card, route, onClick = { onOpenRun(card.id) })
+                ListBody.LIST -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = Spacing.gutter, vertical = Spacing.l,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.m),
+                ) {
+                    state.week?.let { week -> item(key = "week") { WeekStrip(week, listItemMotion()) } }
+                    items(state.cards, key = { it.id }) { card ->
+                        val route by produceState<MapRoute?>(initialValue = null, card.id) { value = vm.routeFor(card.id) }
+                        RunCard(card, route, onClick = { onOpenRun(card.id) }, modifier = listItemMotion())
+                    }
                 }
             }
         }
     }
 }
 
+private enum class ListBody { LOADING, EMPTY, LIST }
+
 @Composable
-private fun WeekStrip(week: WeekSummaryUi) {
+private fun WeekStrip(week: WeekSummaryUi, modifier: Modifier = Modifier) {
     val initials = stringArrayResource(R.array.history_day_initials)
-    AppCard {
+    AppCard(modifier) {
         SectionHeader(stringResource(R.string.history_this_week))
         StatRow(
             stats = listOf(
@@ -103,18 +117,21 @@ private fun WeekStrip(week: WeekSummaryUi) {
                 StatItem(stringResource(R.string.history_week_activities), week.count.toString()),
             ),
             size = StatSize.L,
+            animateValues = true,
         )
         Row(
             Modifier.fillMaxWidth().padding(top = Spacing.l),
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {
             week.days.forEach { day ->
+                // A meter: the bar height interpolates over Motion.VALUE_MS when the filter changes it.
+                val fraction by animateFloatAsState(day.fraction, Motion.value(), label = "dayBar")
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.height(48.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .height((6 + 42 * day.fraction).dp)
+                                .height((6 + 42 * fraction).dp)
                                 .clip(RoundedCornerShape(Radius.sm))
                                 .background(
                                     when {
@@ -138,8 +155,8 @@ private fun WeekStrip(week: WeekSummaryUi) {
 }
 
 @Composable
-private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit) {
-    AppCard(onClick = onClick, verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+private fun RunCard(card: RunCardUi, route: MapRoute?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AppCard(modifier, onClick = onClick, verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
             ActivityTypeIcon(card.type, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {

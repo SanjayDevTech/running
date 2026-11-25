@@ -1,5 +1,6 @@
 package com.example.running.ui.onboarding
 
+import androidx.compose.animation.AnimatedContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,6 +52,7 @@ import com.example.running.ui.components.PrimaryButton
 import com.example.running.ui.settings.ProfileFields
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -99,63 +101,68 @@ fun OnboardingScreen(onFinished: () -> Unit) {
             .padding(horizontal = Spacing.gutter, vertical = Spacing.xxl),
         verticalArrangement = Arrangement.spacedBy(Spacing.l),
     ) {
-        Text(
-            stringResource(R.string.onboarding_step_of, step.ordinal + 1, OnboardingStep.entries.size),
-            style = AppText.eyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Icon(stepIcon(step), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(40.dp))
-        Text(stringResource(stepTitle(step)), style = AppText.titleL, color = MaterialTheme.colorScheme.onSurface)
-        Text(stringResource(stepBody(step)), style = AppText.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-        when (step) {
-            OnboardingStep.PROFILE -> {
-                ProfileFields(
-                    form = state.form, showErrors = state.showFormErrors,
-                    onWeight = vm::setWeight, onAge = vm::setAge, onSex = vm::setSex, onHeight = vm::setHeight,
+        // Steps are peers: each fades through to the next (Motion.fadeThrough), like a tab switch.
+        AnimatedContent(step, transitionSpec = { Motion.fadeThrough() }, label = "onboardingStep") { step ->
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.l)) {
+                Text(
+                    stringResource(R.string.onboarding_step_of, step.ordinal + 1, OnboardingStep.entries.size),
+                    style = AppText.eyebrow, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                PrimaryButton(stringResource(R.string.onboarding_continue), vm::submitProfile, Modifier.fillMaxWidth())
-            }
-            OnboardingStep.ACCURACY -> {
-                if (state.checkingAccuracy) {
-                    CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally), color = Accent)
-                    Text(stringResource(R.string.onboarding_accuracy_checking), style = AppText.bodyS)
-                } else {
-                    PrimaryButton(
-                        stringResource(R.string.onboarding_accuracy_turn_on),
-                        onClick = {
-                            scope.launch {
-                                val pending = vm.accuracyResolution()
-                                val launched = pending != null &&
-                                    runCatching { accuracyLauncher.launch(IntentSenderRequest.Builder(pending).build()) }.isSuccess
-                                if (!launched) settingsLauncher.launch(Permissions.locationSettingsIntent())
+                Icon(stepIcon(step), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(40.dp))
+                Text(stringResource(stepTitle(step)), style = AppText.titleL, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(stepBody(step)), style = AppText.body, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                when (step) {
+                    OnboardingStep.PROFILE -> {
+                        ProfileFields(
+                            form = state.form, showErrors = state.showFormErrors,
+                            onWeight = vm::setWeight, onAge = vm::setAge, onSex = vm::setSex, onHeight = vm::setHeight,
+                        )
+                        PrimaryButton(stringResource(R.string.onboarding_continue), vm::submitProfile, Modifier.fillMaxWidth())
+                    }
+                    OnboardingStep.ACCURACY -> {
+                        if (state.checkingAccuracy) {
+                            CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally), color = Accent)
+                            Text(stringResource(R.string.onboarding_accuracy_checking), style = AppText.bodyS)
+                        } else {
+                            PrimaryButton(
+                                stringResource(R.string.onboarding_accuracy_turn_on),
+                                onClick = {
+                                    scope.launch {
+                                        val pending = vm.accuracyResolution()
+                                        val launched = pending != null &&
+                                            runCatching { accuracyLauncher.launch(IntentSenderRequest.Builder(pending).build()) }.isSuccess
+                                        if (!launched) settingsLauncher.launch(Permissions.locationSettingsIntent())
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            SkipButton(stringResource(R.string.onboarding_skip)) { vm.advance() }
+                        }
+                    }
+                    else -> {
+                        if (granted) {
+                            PrimaryButton(stringResource(R.string.onboarding_next), vm::advance, Modifier.fillMaxWidth())
+                        } else {
+                            PrimaryButton(
+                                text = stringResource(if (step == OnboardingStep.BACKGROUND_LOCATION) R.string.onboarding_open_settings else R.string.onboarding_allow),
+                                onClick = {
+                                    when (step) {
+                                        OnboardingStep.LOCATION -> locationLauncher.launch(Permissions.LOCATION)
+                                        // API 30+: the system opens this app's location settings page instead of a dialog.
+                                        OnboardingStep.BACKGROUND_LOCATION -> backgroundLauncher.launch(Permissions.BACKGROUND_LOCATION)
+                                        OnboardingStep.NOTIFICATIONS -> notificationLauncher.launch(Permissions.NOTIFICATIONS)
+                                        OnboardingStep.ACTIVITY_RECOGNITION -> activityLauncher.launch(Permissions.ACTIVITY_RECOGNITION)
+                                        OnboardingStep.BATTERY -> batteryLauncher.launch(BatteryOptimization.requestExemptionIntent(context))
+                                        else -> Unit
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            SkipButton(stringResource(R.string.onboarding_skip)) {
+                                if (step == OnboardingStep.BATTERY) vm.skipBattery() else vm.advance()
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SkipButton(stringResource(R.string.onboarding_skip)) { vm.advance() }
-                }
-            }
-            else -> {
-                if (granted) {
-                    PrimaryButton(stringResource(R.string.onboarding_next), vm::advance, Modifier.fillMaxWidth())
-                } else {
-                    PrimaryButton(
-                        text = stringResource(if (step == OnboardingStep.BACKGROUND_LOCATION) R.string.onboarding_open_settings else R.string.onboarding_allow),
-                        onClick = {
-                            when (step) {
-                                OnboardingStep.LOCATION -> locationLauncher.launch(Permissions.LOCATION)
-                                // API 30+: the system opens this app's location settings page instead of a dialog.
-                                OnboardingStep.BACKGROUND_LOCATION -> backgroundLauncher.launch(Permissions.BACKGROUND_LOCATION)
-                                OnboardingStep.NOTIFICATIONS -> notificationLauncher.launch(Permissions.NOTIFICATIONS)
-                                OnboardingStep.ACTIVITY_RECOGNITION -> activityLauncher.launch(Permissions.ACTIVITY_RECOGNITION)
-                                OnboardingStep.BATTERY -> batteryLauncher.launch(BatteryOptimization.requestExemptionIntent(context))
-                                else -> Unit
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    SkipButton(stringResource(R.string.onboarding_skip)) {
-                        if (step == OnboardingStep.BATTERY) vm.skipBattery() else vm.advance()
+                        }
                     }
                 }
             }

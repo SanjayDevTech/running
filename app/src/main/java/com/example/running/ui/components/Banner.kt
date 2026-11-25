@@ -35,7 +35,7 @@ import com.example.running.ui.theme.Warning
 
 /**
  * A warning that floats over content (the Record map): `Raised3` card (Radius.md, Outline border), `Warning` icon,
- * a short message and one action. Animate it in and out with AnimatedVisibility.
+ * a short message and one action. Show and hide it with `AnimatedVisibility` and `Motion.appear` / `Motion.disappear`.
  */
 @Composable
 fun WarningBanner(

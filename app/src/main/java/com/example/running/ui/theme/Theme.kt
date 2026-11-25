@@ -1,7 +1,6 @@
 package com.example.running.ui.theme
 
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -46,12 +45,15 @@ internal val RunningColorScheme = darkColorScheme(
     surfaceContainerHighest = Raised4,
 )
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/**
+ * Plain `MaterialTheme`, so Material components move on the standard motion scheme: the expressive
+ * scheme's spring overshoot is outside the app's motion vocabulary (`Motion.kt`, ui-house-rules §9).
+ */
 @Composable
 fun RunningTheme(content: @Composable () -> Unit) {
-    MaterialExpressiveTheme(
+    MaterialTheme(
         colorScheme = RunningColorScheme,
-        motionScheme = MotionScheme.expressive(),
+        motionScheme = MotionScheme.standard(),
         typography = AppTypography,
         content = content,
     )

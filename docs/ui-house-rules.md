@@ -69,3 +69,31 @@ screen during a run is full-screen: the bottom bar is hidden.
 
 Its conventions (code style, build, CI) are shared; its visual design (mint accent, hairline-boxed
 sections) is not.
+
+## 9. Motion
+
+One vocabulary, from gym-tracker; the tokens are in `ui/theme/Motion.kt`. Never hard-code a duration,
+easing or spring in a screen.
+
+| Event | Spec |
+|---|---|
+| generic state (show/hide, colour, size, crossfade) | `Motion.STATE_MS` 200 ms, `FastOutSlowIn` (`Motion.state()`) |
+| numbers changed by a choice, meters, chart values | 450 ms, the value interpolates (`Motion.value()`); tabular figures keep digits still |
+| selection / row tint | 150 ms (`Motion.tint()`): chips, selected split row |
+| something joining a layout (row, warning, banner, section) | `Motion.appear` / `Motion.disappear` (fade + expand/shrink from the top) |
+| badge, pill, dot | `Motion.badgeIn` (fade + scale 0.9 -> 1) / `Motion.badgeOut` |
+| one value replacing another in place | `AnimatedContent` + `Motion.crossfade()` |
+| one screen-sized state replacing another (loading -> content, record phases, onboarding steps) | `AnimatedContent` + `Motion.fadeThrough()` (90 ms out, then 210 ms in) |
+| tab switch | fade-through; peers never slide |
+| push / pop | 300 ms slide, the screen underneath moves 1/3 (parallax); predictive back uses the same pop |
+| lazy list rows | `listItemMotion()` (fade in/out + placement, 200 ms); give the items stable keys |
+| press feedback | ripple, plus `rememberAppHaptics()`: `light()` for small choices, `confirm()` for start/finish |
+| dialogs, menus | Material default (standard motion scheme) |
+| banned | spring overshoot, the expressive motion scheme, shape-morph, shared elements, slides between peers |
+
+- Key `AnimatedContent` by the thing that changed meaning (a phase, a hint stage), not by text that
+  ticks: live run stats and countdowns never animate.
+- Animate colour with `animateColorAsState`, sizes with `animateContentSize(Motion.state())`, values
+  with `animateFloatAsState(…, Motion.value())`.
+- Reduced motion is handled by Compose (system animator duration scale); do not add a check.
+

@@ -1,8 +1,10 @@
 package com.example.running.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,7 +40,9 @@ import com.example.running.ui.components.DestructiveButton
 import com.example.running.ui.components.ScreenTitle
 import com.example.running.ui.components.SectionHeader
 import com.example.running.ui.components.displayName
+import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.AppText
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Spacing
 import com.example.running.ui.theme.Success
 import com.example.running.ui.theme.TextTertiary
@@ -70,7 +74,7 @@ fun SettingsScreen(onOpenProfile: () -> Unit, onOpenBackup: () -> Unit) {
 
     val s = ui.settings
     val sys = ui.system
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Black)) {
         ScreenTitle(stringResource(R.string.settings_title))
         Column(
             Modifier
@@ -168,24 +172,27 @@ fun SettingsScreen(onOpenProfile: () -> Unit, onOpenBackup: () -> Unit) {
                 )
             }
 
-            if (s.devModeUnlocked) {
-                SectionHeader(stringResource(R.string.settings_section_developer))
-                SettingsCard {
-                    Column(Modifier.padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                        androidx.compose.foundation.layout.Row(
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(stringResource(R.string.settings_dev_dual), style = AppText.body)
-                                Text(
-                                    stringResource(R.string.settings_dev_dual_body), style = AppText.bodyS,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+            // Unlocked by the version taps, or turned off: the section opens and folds (Motion.appear).
+            AnimatedVisibility(s.devModeUnlocked, enter = Motion.appear, exit = Motion.disappear) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                    SectionHeader(stringResource(R.string.settings_section_developer))
+                    SettingsCard {
+                        Column(Modifier.padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                            androidx.compose.foundation.layout.Row(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.settings_dev_dual), style = AppText.body)
+                                    Text(
+                                        stringResource(R.string.settings_dev_dual_body), style = AppText.bodyS,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Switch(checked = s.devDualEngine, onCheckedChange = vm::setDevDualEngine)
                             }
-                            Switch(checked = s.devDualEngine, onCheckedChange = vm::setDevDualEngine)
+                            DestructiveButton(stringResource(R.string.settings_dev_disable), vm::disableDevMode)
                         }
-                        DestructiveButton(stringResource(R.string.settings_dev_disable), vm::disableDevMode)
                     }
                 }
             }

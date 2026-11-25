@@ -1,5 +1,6 @@
 package com.example.running.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import com.example.running.R
 import com.example.running.di.appViewModel
 import com.example.running.ui.components.AppTopBar
 import com.example.running.ui.components.PrimaryButton
+import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Spacing
 
 /** CONTRACT(F). Public signature frozen (architecture.md §3.8). */
@@ -27,7 +29,7 @@ fun ProfileEditScreen(onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
 
-    Column(Modifier.fillMaxSize().imePadding()) {
+    Column(Modifier.fillMaxSize().background(Black).imePadding()) {
         AppTopBar(stringResource(R.string.settings_profile_title), onBack = onBack)
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter, vertical = Spacing.l),

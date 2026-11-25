@@ -1,5 +1,6 @@
 package com.example.running.ui.progress
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,8 @@ import com.example.running.ui.components.charts.AppBarChart
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
+import com.example.running.ui.theme.Motion
+import com.example.running.ui.theme.listItemMotion
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
 import com.example.running.ui.theme.TextTertiary
@@ -58,84 +61,92 @@ fun ProgressScreen(onOpenPersonalBests: () -> Unit, onOpenRun: (runId: String) -
     Column(Modifier.fillMaxSize().background(Black)) {
         ScreenTitle(stringResource(R.string.progress_title))
         if (s == null) return@Column
-        if (s.isEmpty) {
-            ActivityFilterChips(
-                selected = s.filter, onSelect = vm::setFilter,
-                modifier = Modifier.padding(horizontal = Spacing.gutter),
-            )
-            EmptyState(
-                title = stringResource(R.string.progress_empty_title),
-                body = stringResource(R.string.progress_empty_body),
-                modifier = Modifier.weight(1f),
-            )
-            return@Column
-        }
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.s),
-            verticalArrangement = Arrangement.spacedBy(Spacing.m),
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                    ActivityFilterChips(selected = s.filter, onSelect = vm::setFilter)
-                    val weekly = stringResource(R.string.progress_period_weekly)
-                    val monthly = stringResource(R.string.progress_period_monthly)
-                    ChoiceChips(
-                        options = ProgressPeriod.entries, selected = s.period, onSelect = vm::setPeriod,
-                        label = { if (it == ProgressPeriod.WEEKLY) weekly else monthly },
+        // A filter with no runs swaps the whole body for the empty state: fade through, like a tab.
+        AnimatedContent(s.isEmpty, transitionSpec = { Motion.fadeThrough() }, label = "progressBody") { empty ->
+            if (empty) {
+                Column(Modifier.fillMaxSize()) {
+                    ActivityFilterChips(
+                        selected = s.filter, onSelect = vm::setFilter,
+                        modifier = Modifier.padding(horizontal = Spacing.gutter),
                     )
-                    val metricLabels = ProgressMetric.entries.associateWith { metricLabel(it) }
-                    ChoiceChips(
-                        options = ProgressMetric.entries, selected = s.metric, onSelect = vm::setMetric,
-                        label = { metricLabels.getValue(it) },
+                    EmptyState(
+                        title = stringResource(R.string.progress_empty_title),
+                        body = stringResource(R.string.progress_empty_body),
+                        modifier = Modifier.weight(1f),
                     )
                 }
+                return@AnimatedContent
             }
-            item { SelectedPeriod(s, vm.zone) }
-            item {
-                AppBarChart(
-                    bars = s.bars,
-                    yFormatter = { s.metric.formatAxis(it, s.axisMax) },
-                    selectedIndex = s.selectedIndex,
-                    onSelect = vm::selectBar,
-                    yStep = s.metric.axisStep(s.axisMax),
-                )
-            }
-            item { SectionHeader(stringResource(R.string.progress_streaks)) }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                    val wk = stringResource(R.string.progress_unit_weeks)
-                    val d = stringResource(R.string.progress_unit_days)
-                    StatRow(
-                        listOf(
-                            StatItem(stringResource(R.string.progress_streak_current_weeks), s.streaks.currentWeeks.toString(), wk),
-                            StatItem(stringResource(R.string.progress_streak_longest_weeks), s.streaks.longestWeeks.toString(), wk),
-                        ),
-                    )
-                    StatRow(
-                        listOf(
-                            StatItem(stringResource(R.string.progress_streak_current_days), s.streaks.currentDays.toString(), d),
-                            StatItem(stringResource(R.string.progress_streak_longest_days), s.streaks.longestDays.toString(), d),
-                        ),
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.s),
+                verticalArrangement = Arrangement.spacedBy(Spacing.m),
+            ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                        ActivityFilterChips(selected = s.filter, onSelect = vm::setFilter)
+                        val weekly = stringResource(R.string.progress_period_weekly)
+                        val monthly = stringResource(R.string.progress_period_monthly)
+                        ChoiceChips(
+                            options = ProgressPeriod.entries, selected = s.period, onSelect = vm::setPeriod,
+                            label = { if (it == ProgressPeriod.WEEKLY) weekly else monthly },
+                        )
+                        val metricLabels = ProgressMetric.entries.associateWith { metricLabel(it) }
+                        ChoiceChips(
+                            options = ProgressMetric.entries, selected = s.metric, onSelect = vm::setMetric,
+                            label = { metricLabels.getValue(it) },
+                        )
+                    }
+                }
+                item { SelectedPeriod(s, vm.zone) }
+                item {
+                    AppBarChart(
+                        bars = s.bars,
+                        yFormatter = { s.metric.formatAxis(it, s.axisMax) },
+                        selectedIndex = s.selectedIndex,
+                        onSelect = vm::selectBar,
+                        yStep = s.metric.axisStep(s.axisMax),
                     )
                 }
-            }
-            item { SectionHeader(stringResource(R.string.progress_totals)) }
-            item {
-                StatRow(
-                    listOf(
-                        StatItem(stringResource(R.string.progress_metric_runs), s.allTime.count.toString()),
-                        StatItem(stringResource(R.string.stat_distance), formatDistanceKm(s.allTime.distanceM, 0), stringResource(R.string.unit_km)),
-                        StatItem(stringResource(R.string.stat_time), formatDurationShort(s.allTime.movingMillis)),
-                    ),
-                    size = StatSize.M,
-                )
-            }
-            item { PersonalBestsLink(onOpenPersonalBests) }
-            item { SectionHeader(stringResource(R.string.progress_recent)) }
-            items(s.recent, key = { it.id }) { run ->
-                val card = remember(run) { vm.card(run) }
-                RunRow(card, onClick = { onOpenRun(run.id) })
+                item { SectionHeader(stringResource(R.string.progress_streaks)) }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                        val wk = stringResource(R.string.progress_unit_weeks)
+                        val d = stringResource(R.string.progress_unit_days)
+                        StatRow(
+                            listOf(
+                                StatItem(stringResource(R.string.progress_streak_current_weeks), s.streaks.currentWeeks.toString(), wk),
+                                StatItem(stringResource(R.string.progress_streak_longest_weeks), s.streaks.longestWeeks.toString(), wk),
+                            ),
+                            animateValues = true,
+                        )
+                        StatRow(
+                            listOf(
+                                StatItem(stringResource(R.string.progress_streak_current_days), s.streaks.currentDays.toString(), d),
+                                StatItem(stringResource(R.string.progress_streak_longest_days), s.streaks.longestDays.toString(), d),
+                            ),
+                            animateValues = true,
+                        )
+                    }
+                }
+                item { SectionHeader(stringResource(R.string.progress_totals)) }
+                item {
+                    StatRow(
+                        listOf(
+                            StatItem(stringResource(R.string.progress_metric_runs), s.allTime.count.toString()),
+                            StatItem(stringResource(R.string.stat_distance), formatDistanceKm(s.allTime.distanceM, 0), stringResource(R.string.unit_km)),
+                            StatItem(stringResource(R.string.stat_time), formatDurationShort(s.allTime.movingMillis)),
+                        ),
+                        size = StatSize.M,
+                        animateValues = true,
+                    )
+                }
+                item { PersonalBestsLink(onOpenPersonalBests) }
+                item { SectionHeader(stringResource(R.string.progress_recent)) }
+                items(s.recent, key = { it.id }) { run ->
+                    val card = remember(run) { vm.card(run) }
+                    RunRow(card, onClick = { onOpenRun(run.id) }, modifier = listItemMotion())
+                }
             }
         }
     }
@@ -158,7 +169,10 @@ private fun SelectedPeriod(s: ProgressUiState, zone: java.time.ZoneId) {
         is Caption.Month -> c.label
     }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-        Text(caption, style = AppText.titleM, color = MaterialTheme.colorScheme.onSurface)
+        // Picking another bar: the caption crossfades (gym's period pager), the figures below too.
+        AnimatedContent(caption, transitionSpec = { Motion.crossfade() }, label = "periodCaption") { text ->
+            Text(text, style = AppText.titleM, color = MaterialTheme.colorScheme.onSurface)
+        }
         StatRow(
             listOf(
                 StatItem(stringResource(R.string.stat_distance), formatDistanceKm(s.selected.distanceM, 1), stringResource(R.string.unit_km)),
@@ -167,6 +181,7 @@ private fun SelectedPeriod(s: ProgressUiState, zone: java.time.ZoneId) {
                 StatItem(stringResource(R.string.stat_elevation), formatElevation(s.selected.elevationGainM)),
             ),
             size = StatSize.M,
+            animateValues = true,
         )
     }
 }

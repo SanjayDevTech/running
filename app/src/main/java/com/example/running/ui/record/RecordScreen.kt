@@ -4,13 +4,9 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,10 +82,12 @@ import com.example.running.ui.components.StatTile
 import com.example.running.ui.components.StatusDot
 import com.example.running.ui.components.WarningBanner
 import com.example.running.ui.components.displayName
+import com.example.running.ui.components.rememberAppHaptics
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
 import com.example.running.ui.theme.Danger
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.OnAccent
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised2
@@ -246,61 +244,62 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
     }
 
     Box(Modifier.fillMaxSize().background(Black)) {
-        when (val s = state) {
-            is RecordingState.Recording -> RecordingContent(
-                state = s,
-                route = route,
-                userLocation = userLocation,
-                devDual = devDual,
-                locationOff = !locationOn,
-                onTurnOnLocation = turnOnLocation,
-                onPause = vm::pause,
-                onResume = vm::resume,
-                onFinish = vm::stop,
-            )
-            is RecordingState.Saving -> SavingContent()
-            is RecordingState.NeedsRecoveryDecision -> RecoveryContent(
-                state = s,
-                zoneId = container.core.clock.zoneId().id,
-                onResume = { vm.resumeInterrupted(s.runId) },
-                onFinish = { vm.finishInterrupted(s.runId) },
-            )
-            is RecordingState.Idle, is RecordingState.WarmingUp -> {
-                val gps = (s as? RecordingState.WarmingUp)?.gps ?: GpsStatus.NONE
-                ReadyContent(
-                    gps = gps,
-                    userLocation = if (block == null) userLocation else null,
-                    block = block,
-                    permissionAsked = locationAsked,
-                    accuracyOff = accuracyOff && block == null,
+        // Phases fade through (ready -> recording -> saving); updates inside a phase do not re-animate.
+        AnimatedContent(
+            targetState = state,
+            contentKey = { it.phase() },
+            transitionSpec = { Motion.fadeThrough() },
+            label = "recordPhase",
+        ) { s ->
+            when (s) {
+                is RecordingState.Recording -> RecordingContent(
+                    state = s,
+                    route = route,
+                    userLocation = userLocation,
                     devDual = devDual,
-                    startEnabled = startEnabled(block, gps, startPending),
-                    waitingToStart = startPending && block == null,
-                    onStart = onStart,
-                    onCancelStart = { startPending = false },
-                    onFixBlock = fixBlock,
-                    onFixAccuracy = onFixAccuracy,
+                    locationOff = !locationOn,
+                    onTurnOnLocation = turnOnLocation,
+                    onPause = vm::pause,
+                    onResume = vm::resume,
+                    onFinish = vm::stop,
                 )
+                is RecordingState.Saving -> SavingContent()
+                is RecordingState.NeedsRecoveryDecision -> RecoveryContent(
+                    state = s,
+                    zoneId = container.core.clock.zoneId().id,
+                    onResume = { vm.resumeInterrupted(s.runId) },
+                    onFinish = { vm.finishInterrupted(s.runId) },
+                )
+                is RecordingState.Idle, is RecordingState.WarmingUp -> {
+                    val gps = (s as? RecordingState.WarmingUp)?.gps ?: GpsStatus.NONE
+                    ReadyContent(
+                        gps = gps,
+                        userLocation = if (block == null) userLocation else null,
+                        block = block,
+                        permissionAsked = locationAsked,
+                        accuracyOff = accuracyOff && block == null,
+                        devDual = devDual,
+                        startEnabled = startEnabled(block, gps, startPending),
+                        waitingToStart = startPending && block == null,
+                        onStart = onStart,
+                        onCancelStart = { startPending = false },
+                        onFixBlock = fixBlock,
+                        onFixAccuracy = onFixAccuracy,
+                    )
+                }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(Spacing.gutter))
     }
 }
 
-/** The location banner over the Record map; slides down from the top edge and back. */
+/** The location banner over the Record map; opens down from its top edge and folds back. */
 @Composable
 private fun LocationBanner(block: LocationBlock?, permissionAsked: Boolean, onFix: () -> Unit, modifier: Modifier = Modifier) {
     // Keep the last block while the banner animates out, so its text does not blank mid-exit.
     var shown by remember { mutableStateOf(block ?: LocationBlock.LOCATION_OFF) }
     if (block != null) shown = block
-    AnimatedVisibility(
-        visible = block != null,
-        modifier = modifier,
-        enter = fadeIn(tween(BANNER_MS, easing = FastOutSlowInEasing)) +
-            slideInVertically(tween(BANNER_MS, easing = FastOutSlowInEasing)) { -it / 2 },
-        exit = fadeOut(tween(BANNER_MS, easing = FastOutSlowInEasing)) +
-            slideOutVertically(tween(BANNER_MS, easing = FastOutSlowInEasing)) { -it / 2 },
-    ) {
+    AnimatedVisibility(visible = block != null, modifier = modifier, enter = Motion.appear, exit = Motion.disappear) {
         when (shown) {
             LocationBlock.PERMISSION -> WarningBanner(
                 text = stringResource(R.string.record_banner_permission),
@@ -318,7 +317,15 @@ private fun LocationBanner(block: LocationBlock?, permissionAsked: Boolean, onFi
     }
 }
 
-private const val BANNER_MS = 200
+/** Record phases that replace the whole screen (fade-through between them). */
+private enum class RecordPhase { READY, RECORDING, SAVING, RECOVERY }
+
+private fun RecordingState.phase(): RecordPhase = when (this) {
+    is RecordingState.Idle, is RecordingState.WarmingUp -> RecordPhase.READY
+    is RecordingState.Recording -> RecordPhase.RECORDING
+    is RecordingState.Saving -> RecordPhase.SAVING
+    is RecordingState.NeedsRecoveryDecision -> RecordPhase.RECOVERY
+}
 
 // ------------------------------------------------------------------------------------------ before start
 
@@ -337,6 +344,7 @@ private fun ReadyContent(
     onFixBlock: () -> Unit,
     onFixAccuracy: () -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     Column(Modifier.fillMaxSize()) {
         ScreenTitle(stringResource(R.string.record_title)) {
             EngineChip(engine = gps.engine, fallback = gps.fallbackActive, quality = gps.quality)
@@ -360,8 +368,8 @@ private fun ReadyContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.l),
         ) {
-            if (block == null) GpsLine(gps)
-            if (waitingToStart) {
+            AnimatedVisibility(block == null, enter = Motion.appear, exit = Motion.disappear) { GpsLine(gps) }
+            AnimatedVisibility(waitingToStart, enter = Motion.appear, exit = Motion.disappear) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.record_start_pending),
@@ -372,7 +380,7 @@ private fun ReadyContent(
                     TextButton(onClick = onCancelStart) { Text(stringResource(R.string.common_cancel)) }
                 }
             }
-            if (accuracyOff) {
+            AnimatedVisibility(accuracyOff, enter = Motion.appear, exit = Motion.disappear) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.record_accuracy_off),
@@ -387,7 +395,7 @@ private fun ReadyContent(
             ControlButton(
                 icon = Icons.Rounded.PlayArrow,
                 label = stringResource(R.string.record_action_start),
-                onClick = onStart,
+                onClick = { haptics.confirm(); onStart() },
                 containerColor = Accent,
                 contentColor = OnAccent,
                 enabled = startEnabled,
@@ -409,15 +417,24 @@ private fun GpsLine(gps: GpsStatus) {
         GpsHint.READY -> stringResource(R.string.record_gps_ready, formatAccuracy(gps.accuracyM))
         GpsHint.WEAK -> stringResource(R.string.record_gps_weak, formatAccuracy(gps.accuracyM))
     }
+    val dot by animateColorAsState(gps.quality.color(), Motion.state(), label = "gpsDot")
     Row(verticalAlignment = Alignment.CenterVertically) {
-        StatusDot(gps.quality.color())
+        StatusDot(dot)
         Spacer(Modifier.width(Spacing.s))
-        Text(
-            text,
-            style = AppText.bodyS,
-            color = if (hint == GpsHint.WEAK) Warning else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        // Crossfade when the stage changes (acquiring -> improving -> ready), not on every countdown tick.
+        AnimatedContent(
+            targetState = hint to text,
+            contentKey = { it.first },
+            transitionSpec = { Motion.crossfade() },
+            label = "gpsHint",
+        ) { (h, t) ->
+            Text(
+                t,
+                style = AppText.bodyS,
+                color = if (h == GpsHint.WEAK) Warning else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -448,6 +465,7 @@ private fun RecordingContent(
     onResume: () -> Unit,
     onFinish: () -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     val stats = state.stats
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -458,7 +476,7 @@ private fun RecordingContent(
             EngineChip(engine = state.gps.engine, fallback = state.gps.fallbackActive, quality = state.gps.quality)
             if (devDual) DevDualBadge()
             Spacer(Modifier.weight(1f))
-            if (state.paused) {
+            AnimatedVisibility(state.paused, enter = Motion.badgeIn, exit = Motion.badgeOut) {
                 Text(
                     stringResource(R.string.record_paused).uppercase(),
                     style = AppText.eyebrow,
@@ -514,7 +532,7 @@ private fun RecordingContent(
                 ),
                 size = StatSize.M,
             )
-            if (state.gps.weakSignalWarning) {
+            AnimatedVisibility(state.gps.weakSignalWarning, enter = Motion.appear, exit = Motion.disappear) {
                 Text(
                     stringResource(R.string.record_gps_weak_recording, formatAccuracy(state.gps.accuracyM)),
                     style = AppText.bodyS,
@@ -523,33 +541,40 @@ private fun RecordingContent(
                     textAlign = TextAlign.Center,
                 )
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xxxl, Alignment.CenterHorizontally),
-            ) {
-                if (state.paused) {
-                    ControlButton(
-                        icon = Icons.Rounded.PlayArrow,
-                        label = stringResource(R.string.record_action_resume),
-                        onClick = onResume,
-                        containerColor = Accent,
-                        contentColor = OnAccent,
-                    )
-                    ControlButton(
-                        icon = Icons.Rounded.Stop,
-                        label = stringResource(R.string.record_action_finish),
-                        onClick = onFinish,
-                        containerColor = Danger,
-                        contentColor = Black,
-                    )
-                } else {
-                    ControlButton(
-                        icon = Icons.Rounded.Pause,
-                        label = stringResource(R.string.record_action_pause),
-                        onClick = onPause,
-                        containerColor = Raised3,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    )
+            AnimatedContent(
+                state.paused,
+                transitionSpec = { Motion.crossfade() },
+                contentAlignment = Alignment.Center,
+                label = "recordControls",
+            ) { paused ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xxxl, Alignment.CenterHorizontally),
+                ) {
+                    if (paused) {
+                        ControlButton(
+                            icon = Icons.Rounded.PlayArrow,
+                            label = stringResource(R.string.record_action_resume),
+                            onClick = { haptics.light(); onResume() },
+                            containerColor = Accent,
+                            contentColor = OnAccent,
+                        )
+                        ControlButton(
+                            icon = Icons.Rounded.Stop,
+                            label = stringResource(R.string.record_action_finish),
+                            onClick = { haptics.confirm(); onFinish() },
+                            containerColor = Danger,
+                            contentColor = Black,
+                        )
+                    } else {
+                        ControlButton(
+                            icon = Icons.Rounded.Pause,
+                            label = stringResource(R.string.record_action_pause),
+                            onClick = { haptics.light(); onPause() },
+                            containerColor = Raised3,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
         }

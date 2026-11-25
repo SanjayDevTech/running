@@ -742,7 +742,9 @@ object DeepLinks {
 ### 2.8 Theme (`ui/theme/`, FOUNDATION) — always dark, OLED
 
 No light scheme, no dynamic colour. Bar icons pinned light (`SystemBarStyle.dark(TRANSPARENT)`).
-`MaterialExpressiveTheme` (material3 1.5.0) with `MotionScheme.expressive()`.
+Plain `MaterialTheme` with `MotionScheme.standard()` (was `MaterialExpressiveTheme` +
+`MotionScheme.expressive()` until §10.9: its spring overshoot is outside the motion vocabulary).
+Motion tokens live in `ui/theme/Motion.kt` (docs/ui-house-rules.md §9).
 
 Pure black where content sits directly on the canvas (screen backgrounds, Record screen, top bars,
 map letterboxing). Slightly raised near-black where a pure-black surface would make a shape vanish
@@ -809,7 +811,8 @@ scale 2.0. Do not copy food-tracker's look (mint accent, hairline-boxed sections
 @Composable fun StatTile(label: String, value: String, modifier: Modifier = Modifier, unit: String? = null,
     size: StatSize = StatSize.L, valueColor: Color = Color.Unspecified, alignment: Alignment.Horizontal = Alignment.Start)
 enum class StatSize { Hero, XL, L, M }
-@Composable fun StatRow(stats: List<StatItem>, modifier: Modifier = Modifier, size: StatSize = StatSize.L) // equal-width columns, wraps at large font scale
+@Composable fun StatRow(stats: List<StatItem>, modifier: Modifier = Modifier, size: StatSize = StatSize.L,
+    animateValues: Boolean = false) // equal-width columns, wraps at large font scale; StatTile has animateValue (§10.9)
 data class StatItem(val label: String, val value: String, val unit: String? = null)
 
 @Composable fun SectionHeader(title: String, modifier: Modifier = Modifier, trailing: String? = null, onTrailingClick: (() -> Unit)? = null)
@@ -1932,4 +1935,38 @@ dashed and left out of the pace chart.)
   Recording continues; the engines just get no fixes (Play's fused client goes quiet, the platform GPS
   listener resumes when the provider is back), the clock keeps running, the notification keeps
   updating (its pace holds the last value). Checked on `Running_Test`, no crash.
+
+### 10.9 Motion vocabulary from gym-tracker (2026-11-25)
+
+The app had almost no motion (only the route draw-in). It now uses gym-tracker's motion table
+throughout; the rules are in docs/ui-house-rules.md §9 and the tokens in `ui/theme/Motion.kt`
+(`Motion.STATE_MS` 200, `VALUE_MS` 450, `TINT_MS` 150, `NAV_MS` 300, `FADE_OUT_MS` 90 / `FADE_IN_MS`
+210, all `FastOutSlowIn`; `appear` / `disappear`, `badgeIn` / `badgeOut`, `crossfade()`,
+`fadeThrough()`, `LazyItemScope.listItemMotion()`). Haptics: `ui/components/Haptics.kt`
+(`rememberAppHaptics()`: `light()`, `confirm()`).
+
+- **Navigation** (`AppNavHost`): tab <-> tab and Onboarding -> Record fade through; pushed screens
+  (Run detail, PBs, Profile, Backup, dev compare) slide 300 ms with a 1/3 parallax underneath; the
+  `predictivePop*` pair points at the same pop motion. The bottom bar folds away/opens (200 ms) when
+  Record goes full-screen or a screen is pushed; the Record-tab recording dot pops in as a badge.
+- **Record:** ready / recording / saving / recovery fade through (`AnimatedContent` keyed by phase,
+  so per-second updates do not re-animate); the location banner, GPS line, "starts when ready" and
+  accuracy rows, weak-GPS line open and fold (`appear`); the PAUSED pill is a badge; Pause <-> Resume +
+  Finish crossfade; Start's enabled colour fades (`CircleIconButton` animates its colours); the GPS
+  line crossfades on a stage change, not on countdown ticks. Haptics: Start/Finish `confirm`,
+  Pause/Resume `light`. Live stats do not animate.
+- **Lists:** Activities and Progress "Recent" rows use `listItemMotion()` (fade in/out, slide into
+  place), so a filter switch or a deleted run animates. Activities loading / empty / list and Progress
+  empty / content fade through.
+- **Numbers and meters:** figures that change because the user picked something (Progress selected
+  period, streaks, totals; Activities "This week") crossfade (`StatRow(animateValues = true)`); the
+  week-strip bars and both Vico charts (`animationSpec = Motion.value()`) interpolate over 450 ms.
+  The Progress period caption crossfades like gym's period pager.
+- **Selection:** chips and the selected split row fade their tint over 150 ms; chips tick `light`.
+- **Other:** Run detail loading -> content crossfades, the full-screen map fades; Settings' developer
+  section opens/folds, status dots fade colour, settings cards animate their size when rows come and
+  go (backup list, folder reset); Backup status lines open/fold; onboarding steps fade through.
+- **Route draw-in** keeps its 1.2 s but waits for the push slide (300 ms) and eases `FastOutSlowIn`.
+- **Reduced motion:** Compose scales all of it (and the draw-in `Animatable`) by the system animator
+  duration scale; "Remove animations" makes everything jump to its end. Gym-tracker does the same.
 
