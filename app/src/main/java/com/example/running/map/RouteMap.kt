@@ -217,7 +217,8 @@ fun RouteMap(
         followed = true
     }
 
-    val showPlaceholder = route == null && userLocation == null
+    // LIVE always shows the map, also with no position yet (location off, permission missing, no fix).
+    val showPlaceholder = route == null && userLocation == null && mode != RouteMapMode.LIVE
     val clickable = if (onClick != null && mode != RouteMapMode.INTERACTIVE) Modifier.clickable(onClick = onClick) else Modifier
     Box(
         modifier

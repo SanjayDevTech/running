@@ -1,8 +1,16 @@
 package com.example.running.ui.record
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,7 +75,6 @@ import com.example.running.di.LocalAppContainer
 import com.example.running.di.appViewModel
 import com.example.running.map.RouteMap
 import com.example.running.ui.components.CircleIconButton
-import com.example.running.ui.components.EmptyState
 import com.example.running.ui.components.EngineChip
 import com.example.running.ui.components.PrimaryButton
 import com.example.running.ui.components.ScreenTitle
@@ -77,6 +84,7 @@ import com.example.running.ui.components.StatRow
 import com.example.running.ui.components.StatSize
 import com.example.running.ui.components.StatTile
 import com.example.running.ui.components.StatusDot
+import com.example.running.ui.components.WarningBanner
 import com.example.running.ui.components.displayName
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
@@ -123,25 +131,31 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
     }
 
     var hasLocation by remember { mutableStateOf(Permissions.hasFineLocation(context)) }
-    var locationOn by remember { mutableStateOf(Permissions.isLocationEnabled(context)) }
+    // Live: the quick-settings toggle does not pause the activity, so a resume check would miss it.
+    val locationOnFlow = remember(context) { Permissions.locationEnabledFlow(context) }
+    val locationOn by locationOnFlow.collectAsStateWithLifecycle(initialValue = Permissions.isLocationEnabled(context))
     var locationAsked by rememberSaveable { mutableStateOf(false) }
     var startPermsAsked by rememberSaveable { mutableStateOf(false) }
+    // Start was tapped while location was blocked: carry on to the GPS-gated start once it is not.
+    var startPending by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
 
     LifecycleResumeEffect(Unit) {
         hasLocation = Permissions.hasFineLocation(context)
-        locationOn = Permissions.isLocationEnabled(context)
         vm.refreshAccuracy()
         onPauseOrDispose { }
     }
+    LaunchedEffect(locationOn) { vm.refreshAccuracy() }
     LifecycleStartEffect(Unit) {
         visible = true
         onStopOrDispose {
             visible = false
+            startPending = false
             vm.endWarmUp()
         }
     }
-    val canWarmUp = hasLocation && locationOn
+    val block = locationBlock(hasPermission = hasLocation, locationOn = locationOn)
+    val canWarmUp = block == null
     val isIdle = state is RecordingState.Idle
     LaunchedEffect(isIdle, canWarmUp, visible) {
         if (isIdle && canWarmUp && visible) vm.beginWarmUp()
@@ -150,10 +164,6 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
         if (!canWarmUp && state is RecordingState.WarmingUp) vm.endWarmUp()
     }
 
-    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        hasLocation = Permissions.hasFineLocation(context)
-        locationAsked = true
-    }
     // Notifications (live stats) and activity recognition (steps) are asked once, right before the first start.
     val startPermsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         vm.start()
@@ -161,8 +171,12 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
     val accuracyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
         vm.refreshAccuracy()
     }
+    val turnOnLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        // OK: the location broadcast flips the banner and warm-up starts; a pending Start goes on from there.
+        if (result.resultCode != Activity.RESULT_OK) startPending = false
+    }
 
-    val onStart: () -> Unit = {
+    val launchRun: () -> Unit = {
         val missing = buildList {
             if (!Permissions.hasNotifications(context)) add(Permissions.NOTIFICATIONS)
             if (!Permissions.hasActivityRecognition(context)) add(Permissions.ACTIVITY_RECOGNITION)
@@ -172,6 +186,57 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
             startPermsLauncher.launch(missing.toTypedArray())
         } else {
             vm.start()
+        }
+    }
+    // Google Maps style: Play's one-tap dialog in place; Settings only without Play services.
+    val turnOnLocation: () -> Unit = {
+        scope.launch {
+            val resolution = vm.turnOnLocationResolution()
+            val launched = resolution != null && runCatching {
+                turnOnLauncher.launch(IntentSenderRequest.Builder(resolution).build())
+            }.isSuccess
+            if (!launched && !Permissions.isLocationEnabled(context)) {
+                startPending = false
+                context.startActivity(Permissions.locationSettingsIntent())
+            }
+        }
+    }
+    val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        hasLocation = Permissions.hasFineLocation(context)
+        locationAsked = true
+        when {
+            !hasLocation -> startPending = false
+            startPending && !Permissions.isLocationEnabled(context) -> turnOnLocation()
+        }
+    }
+    val requestLocationPermission: () -> Unit = {
+        if (locationAsked) {
+            startPending = false
+            context.startActivity(Permissions.appSettingsIntent(context))
+        } else {
+            locationLauncher.launch(Permissions.LOCATION)
+        }
+    }
+    val fixBlock: () -> Unit = {
+        when (block) {
+            LocationBlock.PERMISSION -> requestLocationPermission()
+            LocationBlock.LOCATION_OFF -> turnOnLocation()
+            null -> Unit
+        }
+    }
+    val onStart: () -> Unit = {
+        if (block == null) {
+            launchRun()
+        } else {
+            startPending = true
+            fixBlock()
+        }
+    }
+    val warmGps = (state as? RecordingState.WarmingUp)?.gps
+    LaunchedEffect(startPending, block, warmGps?.startAllowed) {
+        if (shouldAutoStart(startPending, block, warmGps)) {
+            startPending = false
+            launchRun()
         }
     }
     val onFixAccuracy: () -> Unit = {
@@ -187,6 +252,8 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
                 route = route,
                 userLocation = userLocation,
                 devDual = devDual,
+                locationOff = !locationOn,
+                onTurnOnLocation = turnOnLocation,
                 onPause = vm::pause,
                 onResume = vm::resume,
                 onFinish = vm::stop,
@@ -198,30 +265,20 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
                 onResume = { vm.resumeInterrupted(s.runId) },
                 onFinish = { vm.finishInterrupted(s.runId) },
             )
-            is RecordingState.Idle, is RecordingState.WarmingUp -> when {
-                !hasLocation -> EmptyState(
-                    title = stringResource(R.string.record_permission_title),
-                    body = stringResource(R.string.record_permission_body),
-                    actionLabel = stringResource(if (locationAsked) R.string.record_permission_open_settings else R.string.record_permission_allow),
-                    onAction = {
-                        if (locationAsked) context.startActivity(Permissions.appSettingsIntent(context))
-                        else locationLauncher.launch(Permissions.LOCATION)
-                    },
-                    modifier = Modifier.statusBarsPadding(),
-                )
-                !locationOn -> EmptyState(
-                    title = stringResource(R.string.record_location_off_title),
-                    body = stringResource(R.string.record_location_off_body),
-                    actionLabel = stringResource(R.string.record_location_off_action),
-                    onAction = { context.startActivity(Permissions.locationSettingsIntent()) },
-                    modifier = Modifier.statusBarsPadding(),
-                )
-                else -> ReadyContent(
-                    gps = (s as? RecordingState.WarmingUp)?.gps ?: GpsStatus.NONE,
-                    userLocation = userLocation,
-                    accuracyOff = accuracyOff,
+            is RecordingState.Idle, is RecordingState.WarmingUp -> {
+                val gps = (s as? RecordingState.WarmingUp)?.gps ?: GpsStatus.NONE
+                ReadyContent(
+                    gps = gps,
+                    userLocation = if (block == null) userLocation else null,
+                    block = block,
+                    permissionAsked = locationAsked,
+                    accuracyOff = accuracyOff && block == null,
                     devDual = devDual,
+                    startEnabled = startEnabled(block, gps, startPending),
+                    waitingToStart = startPending && block == null,
                     onStart = onStart,
+                    onCancelStart = { startPending = false },
+                    onFixBlock = fixBlock,
                     onFixAccuracy = onFixAccuracy,
                 )
             }
@@ -230,33 +287,91 @@ fun RecordScreen(onRunSaved: (runId: String) -> Unit) {
     }
 }
 
+/** The location banner over the Record map; slides down from the top edge and back. */
+@Composable
+private fun LocationBanner(block: LocationBlock?, permissionAsked: Boolean, onFix: () -> Unit, modifier: Modifier = Modifier) {
+    // Keep the last block while the banner animates out, so its text does not blank mid-exit.
+    var shown by remember { mutableStateOf(block ?: LocationBlock.LOCATION_OFF) }
+    if (block != null) shown = block
+    AnimatedVisibility(
+        visible = block != null,
+        modifier = modifier,
+        enter = fadeIn(tween(BANNER_MS, easing = FastOutSlowInEasing)) +
+            slideInVertically(tween(BANNER_MS, easing = FastOutSlowInEasing)) { -it / 2 },
+        exit = fadeOut(tween(BANNER_MS, easing = FastOutSlowInEasing)) +
+            slideOutVertically(tween(BANNER_MS, easing = FastOutSlowInEasing)) { -it / 2 },
+    ) {
+        when (shown) {
+            LocationBlock.PERMISSION -> WarningBanner(
+                text = stringResource(R.string.record_banner_permission),
+                actionLabel = stringResource(
+                    if (permissionAsked) R.string.record_banner_permission_settings else R.string.record_banner_permission_allow,
+                ),
+                onAction = onFix,
+            )
+            LocationBlock.LOCATION_OFF -> WarningBanner(
+                text = stringResource(R.string.record_banner_location_off),
+                actionLabel = stringResource(R.string.record_banner_location_off_action),
+                onAction = onFix,
+            )
+        }
+    }
+}
+
+private const val BANNER_MS = 200
+
 // ------------------------------------------------------------------------------------------ before start
 
 @Composable
 private fun ReadyContent(
     gps: GpsStatus,
     userLocation: GeoPoint?,
+    block: LocationBlock?,
+    permissionAsked: Boolean,
     accuracyOff: Boolean,
     devDual: Boolean,
+    startEnabled: Boolean,
+    waitingToStart: Boolean,
     onStart: () -> Unit,
+    onCancelStart: () -> Unit,
+    onFixBlock: () -> Unit,
     onFixAccuracy: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         ScreenTitle(stringResource(R.string.record_title)) {
             EngineChip(engine = gps.engine, fallback = gps.fallbackActive, quality = gps.quality)
         }
-        RouteMap(
-            route = null,
-            mode = RouteMapMode.LIVE,
-            userLocation = userLocation,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            RouteMap(
+                route = null,
+                mode = RouteMapMode.LIVE,
+                userLocation = userLocation,
+                modifier = Modifier.fillMaxSize(),
+            )
+            LocationBanner(
+                block = block,
+                permissionAsked = permissionAsked,
+                onFix = onFixBlock,
+                modifier = Modifier.align(Alignment.TopCenter).padding(Spacing.gutter),
+            )
+        }
         Column(
             Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.xxl),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.l),
         ) {
-            GpsLine(gps)
+            if (block == null) GpsLine(gps)
+            if (waitingToStart) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.record_start_pending),
+                        style = AppText.bodyS,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    TextButton(onClick = onCancelStart) { Text(stringResource(R.string.common_cancel)) }
+                }
+            }
             if (accuracyOff) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -275,7 +390,7 @@ private fun ReadyContent(
                 onClick = onStart,
                 containerColor = Accent,
                 contentColor = OnAccent,
-                enabled = gps.startAllowed,
+                enabled = startEnabled,
             )
         }
     }
@@ -327,6 +442,8 @@ private fun RecordingContent(
     route: MapRoute?,
     userLocation: GeoPoint?,
     devDual: Boolean,
+    locationOff: Boolean,
+    onTurnOnLocation: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onFinish: () -> Unit,
@@ -353,12 +470,21 @@ private fun RecordingContent(
                 )
             }
         }
-        RouteMap(
-            route = route,
-            mode = RouteMapMode.LIVE,
-            userLocation = userLocation,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            RouteMap(
+                route = route,
+                mode = RouteMapMode.LIVE,
+                userLocation = userLocation,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // Recording carries on; GPS just gives no fixes until location is back on.
+            LocationBanner(
+                block = if (locationOff) LocationBlock.LOCATION_OFF else null,
+                permissionAsked = false,
+                onFix = onTurnOnLocation,
+                modifier = Modifier.align(Alignment.TopCenter).padding(Spacing.gutter),
+            )
+        }
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Spacing.gutter, vertical = Spacing.l),
             verticalArrangement = Arrangement.spacedBy(Spacing.l),

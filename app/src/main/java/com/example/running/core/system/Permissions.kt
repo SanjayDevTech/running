@@ -2,14 +2,21 @@ package com.example.running.core.system
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 object Permissions {
     val LOCATION = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -55,4 +62,26 @@ object Permissions {
 
     fun isLocationEnabled(ctx: Context): Boolean =
         ctx.getSystemService(LocationManager::class.java)?.isLocationEnabled == true
+
+    /**
+     * System location on/off as it changes, starting with the current value. Listens for
+     * [LocationManager.PROVIDERS_CHANGED_ACTION] and [LocationManager.MODE_CHANGED_ACTION], so a toggle
+     * from the quick-settings drawer (which does not pause the activity) is seen at once.
+     */
+    fun locationEnabledFlow(ctx: Context): Flow<Boolean> = callbackFlow {
+        val app = ctx.applicationContext
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                trySend(isLocationEnabled(app))
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(LocationManager.PROVIDERS_CHANGED_ACTION)
+            addAction(LocationManager.MODE_CHANGED_ACTION)
+        }
+        // System broadcasts still reach a not-exported receiver.
+        ContextCompat.registerReceiver(app, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        trySend(isLocationEnabled(app))
+        awaitClose { app.unregisterReceiver(receiver) }
+    }.conflate().distinctUntilChanged()
 }

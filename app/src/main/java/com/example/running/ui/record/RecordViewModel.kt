@@ -49,6 +49,15 @@ internal class RecordViewModel(
 
     suspend fun accuracyResolution(): PendingIntent? = runCatching { accuracyChecker.resolution() }.getOrNull()
 
+    /**
+     * Play's one-tap "turn on location" dialog. With location off, the same HIGH_ACCURACY settings check
+     * the accuracy warning uses answers RESOLUTION_REQUIRED, so F's checker hands it back. Null without
+     * Play services, on a timeout, or when nothing needs resolving (the caller then opens Settings).
+     */
+    suspend fun turnOnLocationResolution(): PendingIntent? = runCatching {
+        if (accuracyChecker.check() == AccuracyState.OFF) accuracyChecker.resolution() else null
+    }.getOrNull()
+
     fun beginWarmUp() = controller.beginWarmUp()
     fun endWarmUp() = controller.endWarmUp()
     fun start() = controller.start()

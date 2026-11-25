@@ -1259,6 +1259,9 @@ class BackupScheduler(/* F chooses */) { fun apply(intervalHours: Int); suspend 
 *Historical (Run 1 only, replaced by F in Run 2):* checker returned `UNKNOWN`/`null`; manager failures; scheduler no-op.
 Consumers: F (onboarding, settings, worker), A (may read `accuracyChecker` to warn on the Record
 screen and to inform AUTO fallback), F0 (`MainActivity` calls `applyFromSettings()`).
+With device location off, `check()` answers OFF too (the HIGH_ACCURACY settings check needs location
+on), and `resolution()` is Play's one-tap "turn on location" dialog. The Record screen reuses it for
+that (§10.8); there is no second settings checker.
 
 ### 3.6 Backup payload schema — implemented by F
 
@@ -1907,3 +1910,26 @@ dashed and left out of the pace chart.)
   keeps it, no crash in logcat. The first few seconds after the resume still read a little slow
   (~6:20 /km for 3–5 s). The gap no longer feeds those pace windows, so this most likely comes from
   the first fixes after the restart (not yet investigated); check it on the phone.
+
+### 10.8 Location off / permission missing on Record (2026-11-25)
+
+- The Record tab no longer swaps to a full-screen empty state. It always shows the map and Start; a
+  `WarningBanner` (`ui/components/Banner.kt`) slides in over the top of the map: "Location is off ·
+  Turn on" or "Allow location to record your route · Allow" (· Settings once asked, as before).
+  Permission outranks the switch (`locationBlock` in `ui/record/RecordUi.kt`). The LIVE map renders
+  with no position (`RouteMap` shows its placeholder only outside LIVE); no user dot while blocked.
+- **Live switch state:** `Permissions.locationEnabledFlow(context)` (`core/system`) listens for
+  `PROVIDERS_CHANGED_ACTION` / `MODE_CHANGED_ACTION` and emits the current value first, so a toggle in
+  the quick-settings drawer (which does not pause the activity) shows or hides the banner at once.
+  The permission is still re-checked on resume.
+- **Start while blocked** stays tappable. Permission missing → the permission request; location off →
+  Play's one-tap dialog (`RecordViewModel.turnOnLocationResolution`, F's `PlayLocationAccuracyChecker`,
+  launched with `StartIntentSenderForResult`), or the location settings screen without Play services.
+  The tap is remembered (`startPending`): once unblocked, warm-up runs and the run starts as soon as
+  the GPS gate allows it (`shouldAutoStart`), with "Starts as soon as GPS is ready · Cancel" meanwhile.
+  A cancelled dialog, a denied permission, a Settings detour or leaving the screen drops it.
+- **Mid-run:** switching location off during Recording/Paused shows the same banner over the live map.
+  Recording continues; the engines just get no fixes (Play's fused client goes quiet, the platform GPS
+  listener resumes when the provider is back), the clock keeps running, the notification keeps
+  updating (its pace holds the last value). Checked on `Running_Test`, no crash.
+
