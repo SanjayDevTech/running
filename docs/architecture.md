@@ -2034,3 +2034,12 @@ dual-engine mode.
 - **Not done** (out of scope or a behaviour change): app baseline profile, offline regions on Wi-Fi
   only, a committed + tail split of the live route source, hoisting the Record map out of the phase
   fade, throttling notification posts with the screen off.
+
+Emulator check (`Running_Test`, release APK): two replayed runs (`adb emu geo fix … <knots>`, speed
+needed or the analysis sees standing still) with a pause, movement during the pause (not counted),
+standing still and finish. The live route drew and grew only while moving, distance resumed after the
+pause, Run detail drew in, Activities thumbnails scrolled, no crashes in logcat. After each finish
+`dumpsys power` showed `Running:recording` released and `dumpsys activity services` showed no service.
+The service is not exported, so `adb shell am start-foreground-service` cannot fire a stale action;
+`RecordingServiceStaleActionTest` (androidTest) does it from the app's uid: it fails without the fix
+and passes with it.
