@@ -35,6 +35,16 @@ Debug builds can seed ~40 synthetic runs for UI work:
 adb shell am start -n com.example.running/.MainActivity --ez seed_demo true
 ```
 
+Release builds bundle a Baseline Profile (committed in `app/src/release/generated/baselineProfiles/`)
+so startup and scrolling are AOT-compiled even though the app is sideloaded. Building needs no
+device; to regenerate it after major UI changes (boots a headless API 34 emulator, ~12 min):
+
+```sh
+./gradlew :app:generateBaselineProfile
+```
+
+Details, the startup benchmark and when to regenerate: [docs/architecture.md §7.1](docs/architecture.md).
+
 CI: **Actions → Build Release APK** builds any branch and attaches the APK to the run, and
 **Actions → Trigger a Release** bumps the version, builds, then tags and publishes
 `Running-v<version>.apk` only if the build passed.
