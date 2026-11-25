@@ -1984,3 +1984,53 @@ throughout; the rules are in docs/ui-house-rules.md §9 and the tokens in `ui/th
 - **Reduced motion:** Compose scales all of it (and the draw-in `Animatable`) by the system animator
   duration scale; "Remove animations" makes everything jump to its end. Gym-tracker does the same.
 
+
+### 10.10 Performance and battery pass (2026-11-25)
+
+Audit goal: less CPU, GPU, battery and memory with **no** change to tracking. Untouched by design:
+high-accuracy 1 s location on the active engine(s), GPS on while paused, step + barometer sensors
+for the whole run, both engines in AUTO (they share one GNSS chip; the second listener costs ~1
+callback/s, and starting it lazily would only add fallback latency), the partial wake lock for the
+whole run (the CPU wakes every second for GNSS anyway), crash recovery, live notification, dev
+dual-engine mode.
+
+- **Live route only when it grows** (SCR §3.3): `LiveMetrics.routeVersion()` changes iff
+  `acceptedRoute()` would; `RecordingSession.routeIfChanged()` compares it. Paused / standing-still
+  fixes no longer copy the route and make the map redraw it.
+- **Live map** (`RouteMap`): colouring + GeoJSON built on `Dispatchers.Default` (`RouteDrawing`), only
+  `setGeoJson` on main; `RouteLayers.update` skips unchanged sources; effect keys compare the route by
+  identity (MapRoute equality walks every point); LIVE computes no bounds; LIVE renders at most
+  30 fps (`setMaximumFps`) since the camera eases on every fix. `textureMode` stays (fades/clips).
+- **Draw-in**: `RouteDrawing` colours the route once; the frame loop pushes `linesUpTo(d)` at ~25 Hz,
+  built off main (identical lines to truncate-then-build, tested). The `Animatable` still drives it,
+  so the system animation scale applies.
+- **MapView memory**: `onLowMemory()` forwarded on low memory / background trim. Offline backend
+  clears region observers when a download ends and drops finished regions from its handle map.
+- **MapLibre starts lazily** (SCR §3.4): not in `Application.onCreate` (backup worker and sticky
+  service restarts skip the native library load); `RouteMap` and the offline backend call the
+  idempotent `MapRuntime.initialize()` first.
+- **Activities thumbnails**: built on Default as `ThumbnailRoute` (<= 240 points coloured against the
+  full route, full-route bounds) and cached in an `LruMap` of 100 per ViewModel instead of every
+  full-size route ever shown (~270 KB per hour of running each). List state built on Default.
+- **Stale notification actions**: a Pause/Resume/Finish PendingIntent arriving after the run ended
+  recreated `RecordingService` (foreground + 12 h wake lock) with nothing to end it. After such an
+  action the service asks `DefaultRecordingController.hasActiveRun()` (serial queue, so after the
+  action) and shuts down if false. `ACTION_START` is exempt (app-open auto-resume starts the service
+  before Recording is published).
+- **Recomposition**: `AppNavHost` collects only "run active" (distinct) instead of the per-second
+  state. Warm-up publishes `waitingMillis = 0` (unused since b7a33c1), so it is not republished every
+  tick. `RecordScreen` still reads the full state at its top (the phase `AnimatedContent` needs it);
+  left as is.
+- **Recording I/O**: one flush = one transaction (`RunRepository.appendRecorded`). Location and sensor
+  callbacks run on one background `HandlerThread` (`core/system/CallbackThread`), not the main looper;
+  recorded times come from the events.
+- **Analyzer**: `localStride` finds its window by binary search (was O(n) per step-filled interval,
+  O(n^2) on long weak-GPS runs); output pinned bit-identical by fingerprints (`AnalyzerEquivalenceTest`).
+- **Notification**: content and action PendingIntents built once (each `get*` is a binder call).
+- **Backup**: the periodic job skips when the change fingerprint (finished runs + edit times,
+  profile, engine mode; `BackupSettings.lastBackupFingerprint`) matches the last backup and the folder
+  still holds one; "Back up now" always writes. It returns retry while a run is recorded or saved
+  (linear 15 min backoff). Streaming the payload run by run was not done (one serializer call today).
+- **Not done** (out of scope or a behaviour change): app baseline profile, offline regions on Wi-Fi
+  only, a committed + tail split of the live route source, hoisting the Record map out of the phase
+  fade, throttling notification posts with the screen off.
