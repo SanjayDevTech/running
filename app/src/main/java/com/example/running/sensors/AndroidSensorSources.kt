@@ -10,6 +10,7 @@ import com.example.running.core.contracts.StepSource
 import com.example.running.core.model.PressureSample
 import com.example.running.core.model.StepCounterReading
 import com.example.running.core.model.StepEvent
+import com.example.running.core.system.CallbackThread
 import com.example.running.core.system.Permissions
 import com.example.running.core.util.Clock
 import kotlinx.coroutines.channels.awaitClose
@@ -63,7 +64,7 @@ internal class AndroidStepSource(context: Context, private val clock: Clock) : S
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
-            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL, CallbackThread.handler)
             awaitClose { sm.unregisterListener(listener) }
         }
     }
@@ -81,7 +82,7 @@ internal class AndroidStepSource(context: Context, private val clock: Clock) : S
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
-            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL, CallbackThread.handler)
             awaitClose { sm.unregisterListener(listener) }
         }
     }
@@ -108,7 +109,7 @@ internal class AndroidPressureSource(context: Context, private val clock: Clock)
 
                 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
             }
-            sm.registerListener(listener, sensor, PRESSURE_PERIOD_US)
+            sm.registerListener(listener, sensor, PRESSURE_PERIOD_US, CallbackThread.handler)
             awaitClose { sm.unregisterListener(listener) }
         }
     }

@@ -5,10 +5,10 @@ import android.content.Context
 import android.location.LocationListener
 import android.location.LocationManager
 import android.location.LocationRequest
-import androidx.core.content.ContextCompat
 import com.example.running.core.contracts.LocationSource
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
+import com.example.running.core.system.CallbackThread
 import com.example.running.core.system.Permissions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +33,7 @@ internal class PlatformLocationSource(context: Context) : LocationSource {
             .setMinUpdateDistanceMeters(0f)
             .build()
         val listener = LocationListener { trySend(it.toFix(engine)) }
-        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, request, ContextCompat.getMainExecutor(app), listener)
+        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, request, CallbackThread.executor, listener)
         awaitClose { lm.removeUpdates(listener) }
     }
 }

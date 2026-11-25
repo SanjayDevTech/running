@@ -2,10 +2,10 @@ package com.example.running.location
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.os.Looper
 import com.example.running.core.contracts.LocationSource
 import com.example.running.core.model.LocationEngine
 import com.example.running.core.model.LocationFix
+import com.example.running.core.system.CallbackThread
 import com.example.running.core.system.Permissions
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -42,7 +42,7 @@ internal class PlayLocationSource(context: Context) : LocationSource {
                 result.locations.forEach { trySend(it.toFix(engine)) }
             }
         }
-        client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        client.requestLocationUpdates(request, callback, CallbackThread.looper)
             .addOnFailureListener { close(it) }
         awaitClose { client.removeLocationUpdates(callback) }
     }
