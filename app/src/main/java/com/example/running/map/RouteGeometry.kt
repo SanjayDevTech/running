@@ -46,19 +46,8 @@ internal class RouteDrawing private constructor(
     fun linesUpTo(distanceM: Double): List<RouteLine> {
         if (distanceM >= points.last().distanceM) return lines
         if (distanceM <= points.first().distanceM) return emptyList()
-        // First point strictly past the cut (distances never decrease), as truncateToDistance picks it.
-        var lo = 1
-        var hi = points.lastIndex
-        while (lo < hi) {
-            val mid = (lo + hi) ushr 1
-            if (points[mid].distanceM > distanceM) hi = mid else lo = mid + 1
-        }
-        val idx = lo
-        val a = points[idx - 1]
-        val b = points[idx]
-        val span = b.distanceM - a.distanceM
-        val f = if (span <= 0.0) 1.0 else (distanceM - a.distanceM) / span
-        val cut = interpolate(GeoPoint(a.lat, a.lon), GeoPoint(b.lat, b.lon), f)
+        val idx = RouteSegments.indexPast(points, distanceM)
+        val cut = RouteSegments.pointBefore(points, idx, distanceM)
         val out = ArrayList<RouteLine>()
         for (r in ranges) {
             if (r.from >= idx) break
@@ -190,13 +179,47 @@ internal object RouteSegments {
     fun truncateToDistance(points: List<RoutePoint>, distanceM: Double): List<RoutePoint> {
         if (points.isEmpty() || distanceM >= points.last().distanceM) return points
         if (distanceM <= points.first().distanceM) return points.take(1)
-        val idx = points.indexOfFirst { it.distanceM > distanceM }
+        val idx = indexPast(points, distanceM)
+        val mid = pointBefore(points, idx, distanceM)
+        return points.subList(0, idx) + points[idx].copy(lat = mid.lat, lon = mid.lon, distanceM = distanceM)
+    }
+
+    /**
+     * The spot [distanceM] along the route (its own distance axis, the one the Run detail charts use as
+     * x), interpolated between the two points around it and clamped to the route's ends; null for an
+     * empty route. Paused stretches are not in the route, so a distance there falls on the straight
+     * line between the last point before the pause and the first one after it; a resume gap (step-
+     * filled points, where the pace chart breaks) has its own points and is followed like any stretch.
+     * O(log n): called for every scrub move on Run detail.
+     */
+    fun pointAtDistance(points: List<RoutePoint>, distanceM: Double): GeoPoint? {
+        if (points.isEmpty() || distanceM.isNaN()) return null
+        if (distanceM <= points.first().distanceM) return GeoPoint(points.first().lat, points.first().lon)
+        if (distanceM >= points.last().distanceM) return GeoPoint(points.last().lat, points.last().lon)
+        return pointBefore(points, indexPast(points, distanceM), distanceM)
+    }
+
+    /**
+     * Index of the first point strictly past [distanceM] (distances never decrease), by binary search.
+     * Needs first.distanceM <= [distanceM] < last.distanceM; the result is then in 1..lastIndex.
+     */
+    fun indexPast(points: List<RoutePoint>, distanceM: Double): Int {
+        var lo = 1
+        var hi = points.lastIndex
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (points[mid].distanceM > distanceM) hi = mid else lo = mid + 1
+        }
+        return lo
+    }
+
+    /** The spot at [distanceM] on the segment points[idx - 1]..points[idx] (idx from [indexPast]). */
+    fun pointBefore(points: List<RoutePoint>, idx: Int, distanceM: Double): GeoPoint {
         val a = points[idx - 1]
         val b = points[idx]
         val span = b.distanceM - a.distanceM
         val f = if (span <= 0.0) 1.0 else (distanceM - a.distanceM) / span
-        val mid = interpolate(GeoPoint(a.lat, a.lon), GeoPoint(b.lat, b.lon), f)
-        return points.subList(0, idx) + b.copy(lat = mid.lat, lon = mid.lon, distanceM = distanceM)
+        return interpolate(GeoPoint(a.lat, a.lon), GeoPoint(b.lat, b.lon), f)
     }
 
     /** Points whose distance lies in [range], widened by one neighbour each side so the line has no gap. */

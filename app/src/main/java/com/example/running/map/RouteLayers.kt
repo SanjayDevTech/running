@@ -18,11 +18,12 @@ internal class RouteLayers private constructor(
     val highlight: GeoJsonSource,
     val comparison: GeoJsonSource,
     val markers: GeoJsonSource,
+    val scrub: GeoJsonSource,
     val user: GeoJsonSource,
 ) {
     /** Sources are created with [RouteGeoJson.EMPTY]. */
     private val lastJson = HashMap<GeoJsonSource, String>().apply {
-        listOf(route, highlight, comparison, markers, user).forEach { put(it, RouteGeoJson.EMPTY) }
+        listOf(route, highlight, comparison, markers, scrub, user).forEach { put(it, RouteGeoJson.EMPTY) }
     }
 
     /** Main thread. Hands [json] to [source] unless it already shows exactly that (no re-parse, no re-tile). */
@@ -37,6 +38,7 @@ internal class RouteLayers private constructor(
         private const val HIGHLIGHT = "route-highlight"
         private const val COMPARISON = "route-comparison"
         private const val MARKERS = "route-markers"
+        private const val SCRUB = "route-scrub"
         private const val USER = "route-user"
 
         private val colorProp = Expression.toColor(Expression.get("c"))
@@ -47,8 +49,9 @@ internal class RouteLayers private constructor(
             val highlight = GeoJsonSource(HIGHLIGHT, RouteGeoJson.EMPTY)
             val comparison = GeoJsonSource(COMPARISON, RouteGeoJson.EMPTY)
             val markers = GeoJsonSource(MARKERS, RouteGeoJson.EMPTY)
+            val scrub = GeoJsonSource(SCRUB, RouteGeoJson.EMPTY)
             val user = GeoJsonSource(USER, RouteGeoJson.EMPTY)
-            listOf(route, highlight, comparison, markers, user).forEach(style::addSource)
+            listOf(route, highlight, comparison, markers, scrub, user).forEach(style::addSource)
 
             style.addLayer(
                 LineLayer("$ROUTE-casing", ROUTE).withProperties(
@@ -102,6 +105,16 @@ internal class RouteLayers private constructor(
                     PropertyFactory.circleStrokeWidth(2.5f),
                 ),
             )
+            // The spot under the finger on a Run detail chart: white with a dark ring, over the start/end
+            // markers so it stays visible when scrubbed to either end.
+            style.addLayer(
+                CircleLayer("$SCRUB-dot", SCRUB).withProperties(
+                    PropertyFactory.circleColor(TextPrimary.toArgb()),
+                    PropertyFactory.circleRadius(6f),
+                    PropertyFactory.circleStrokeColor(Black.toArgb()),
+                    PropertyFactory.circleStrokeWidth(3f),
+                ),
+            )
             style.addLayer(
                 CircleLayer("$USER-halo", USER).withProperties(
                     PropertyFactory.circleColor(Accent.toArgb()),
@@ -117,7 +130,7 @@ internal class RouteLayers private constructor(
                     PropertyFactory.circleStrokeWidth(2.5f),
                 ),
             )
-            return RouteLayers(route, highlight, comparison, markers, user)
+            return RouteLayers(route, highlight, comparison, markers, scrub, user)
         }
     }
 }

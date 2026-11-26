@@ -281,4 +281,62 @@ class RouteGeometryTest {
         }
         assertThat(RouteDrawing.of(route(pt(0)), 100)).isNull()
     }
+
+    @Test
+    fun pointAtDistanceInterpolatesBetweenNeighbours() {
+        val pts = (0..4).map { pt(it) } // 11.1 m apart, lat +0.0001 each
+        val p = RouteSegments.pointAtDistance(pts, 16.65)!! // halfway between point 1 and 2
+        assertThat(p.lat).isWithin(1e-9).of(12.00015)
+        assertThat(p.lon).isWithin(1e-9).of(77.0)
+        // Exactly on a point.
+        assertThat(RouteSegments.pointAtDistance(pts, 22.2)!!.lat).isWithin(1e-9).of(12.0002)
+        // Agrees with the cut point of truncateToDistance (same interpolation).
+        val cut = RouteSegments.truncateToDistance(pts, 30.0).last()
+        val q = RouteSegments.pointAtDistance(pts, 30.0)!!
+        assertThat(q.lat).isWithin(1e-12).of(cut.lat)
+        assertThat(q.lon).isWithin(1e-12).of(cut.lon)
+    }
+
+    @Test
+    fun pointAtDistanceClampsToTheRouteEnds() {
+        val pts = (0..4).map { pt(it) }
+        assertThat(RouteSegments.pointAtDistance(pts, -5.0)).isEqualTo(GeoPoint(12.0, 77.0))
+        assertThat(RouteSegments.pointAtDistance(pts, 0.0)).isEqualTo(GeoPoint(12.0, 77.0))
+        assertThat(RouteSegments.pointAtDistance(pts, 1e9)).isEqualTo(GeoPoint(pts.last().lat, 77.0))
+        assertThat(RouteSegments.pointAtDistance(pts, 44.4)).isEqualTo(GeoPoint(pts.last().lat, 77.0))
+        assertThat(RouteSegments.pointAtDistance(listOf(pt(3)), 10.0)).isEqualTo(GeoPoint(pts[3].lat, 77.0))
+        assertThat(RouteSegments.pointAtDistance(emptyList(), 10.0)).isNull()
+        assertThat(RouteSegments.pointAtDistance(pts, Double.NaN)).isNull()
+    }
+
+    @Test
+    fun pointAtDistanceHandlesPausesAndRepeatedDistances() {
+        // Standing still (same distance twice), then a pause: the route jumps 100 m east with the
+        // distance advancing 50 m (the pause itself is not in the route).
+        val a = RoutePoint(12.0, 77.0, 0.0, 300.0, false, null)
+        val b = RoutePoint(12.0001, 77.0, 11.1, 300.0, false, null)
+        val still = RoutePoint(12.0001, 77.0, 11.1, null, false, SegmentKind.STOP)
+        val resumed = RoutePoint(12.0001, 77.001, 61.1, 300.0, false, null)
+        val end = RoutePoint(12.0002, 77.001, 72.2, 300.0, false, null)
+        val pts = listOf(a, b, still, resumed, end)
+        // At the repeated distance: the last point carrying it (no division by a zero span).
+        assertThat(RouteSegments.pointAtDistance(pts, 11.1)).isEqualTo(GeoPoint(12.0001, 77.0))
+        // Inside the pause: on the straight line between the points either side, never off the route.
+        val mid = RouteSegments.pointAtDistance(pts, 36.1)!!
+        assertThat(mid.lat).isWithin(1e-9).of(12.0001)
+        assertThat(mid.lon).isWithin(1e-9).of(77.0005)
+        // Monotonic along a long route: every probe lands between its bracketing points (binary search).
+        val r = variedRoute(500, RouteColoring.PACE).points
+        val first = r.first().distanceM
+        val span = r.last().distanceM - first
+        for (i in 0..200) {
+            val d = first + span * i / 200.0
+            val p = RouteSegments.pointAtDistance(r, d)!!
+            val after = r.indexOfFirst { it.distanceM > d }.takeIf { it > 0 } ?: r.lastIndex
+            val lo = minOf(r[after - 1].lat, r[after].lat) - 1e-12
+            val hi = maxOf(r[after - 1].lat, r[after].lat) + 1e-12
+            assertThat(p.lat).isAtLeast(lo)
+            assertThat(p.lat).isAtMost(hi)
+        }
+    }
 }

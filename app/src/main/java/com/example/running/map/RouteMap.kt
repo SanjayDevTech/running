@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
@@ -45,6 +46,7 @@ import com.example.running.ui.theme.Danger
 import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Raised1
 import com.example.running.ui.theme.Success
+import com.example.running.ui.theme.TextPrimary
 import com.example.running.ui.theme.Walk
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -72,7 +74,14 @@ private const val LIVE_MAX_FPS = 30
 private const val DRAW_IN_PUSH_MS = 40L
 private val FIT_MARGIN = 32.dp
 
-/** CONTRACT(C). Public signature frozen (architecture.md §3.4). */
+/**
+ * CONTRACT(C). Public signature frozen (architecture.md §3.4; [scrubDistanceM] added 2026-11-26, §10.12).
+ *
+ * [scrubDistanceM] is read lazily (inside an effect, not during composition): it returns the distance
+ * on the route's own axis (m) under the finger on a Run detail chart, or null while nobody scrubs. A
+ * white dot with a dark ring marks that spot. A lambda so that each scrub move only re-sets one
+ * GeoJSON point, without recomposing the caller or this map.
+ */
 @Composable
 fun RouteMap(
     route: MapRoute?,
@@ -84,6 +93,7 @@ fun RouteMap(
     userLocation: GeoPoint? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onClick: (() -> Unit)? = null,
+    scrubDistanceM: (() -> Double?)? = null,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -208,6 +218,19 @@ fun RouteMap(
             else RouteGeoJson.EMPTY
         }
         l.update(l.highlight, json)
+    }
+
+    // Scrub dot: snapshotFlow re-reads the lambda when the state behind it changes (at most once a
+    // frame) and moves one point; the binary search is O(log n), so this stays on main.
+    val currentScrub by rememberUpdatedState(scrubDistanceM)
+    LaunchedEffect(layers, routeKey) {
+        val l = layers ?: return@LaunchedEffect
+        val points = route?.points.orEmpty()
+        val dotArgb = TextPrimary.toArgb()
+        snapshotFlow { currentScrub?.invoke() }.collect { d ->
+            val p = d?.let { RouteSegments.pointAtDistance(points, it) }
+            l.update(l.scrub, if (p == null) RouteGeoJson.EMPTY else RouteGeoJson.points(listOf(p to dotArgb)))
+        }
     }
 
     LaunchedEffect(layers, comparison) {
