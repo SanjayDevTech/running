@@ -48,6 +48,8 @@ import kotlin.math.abs
  * The app's one line chart (Vico). D and E use this; nobody else sets up Vico.
  * [invertY] plots -y so that a smaller value (faster pace) sits higher; formatters still get the real y.
  * [breaks] are x values where the line is interrupted (drawn as separate series in the same style).
+ * [onScrub] follows the finger: the x of the readout while the chart is pressed or dragged (each time it
+ * moves to another point), then null when the finger lifts. It does not change the readout itself.
  */
 @Composable
 fun AppLineChart(
@@ -65,6 +67,7 @@ fun AppLineChart(
     minXLabelStep: Double = 0.0,
     minYStep: Double = 0.0,
     breaks: List<Double> = emptyList(),
+    onScrub: ((x: Double?) -> Unit)? = null,
 ) {
     if (points.size < 2) return
     val sign = if (invertY) -1.0 else 1.0
@@ -89,6 +92,7 @@ fun AppLineChart(
     val yFmt = rememberUpdatedState(yFormatter)
     val xFmt = rememberUpdatedState(xFormatter)
     val onSelect = rememberUpdatedState(onSelectX)
+    val scrub = rememberUpdatedState(onScrub)
 
     val mainLine = LineCartesianLayer.rememberLine(
         fill = remember(color) { LineCartesianLayer.LineFill.single(Fill(color)) },
@@ -127,14 +131,18 @@ fun AppLineChart(
     )
     val listener = remember {
         object : CartesianMarkerVisibilityListener {
+            // The default marker controller shows on press, follows moves and hides on release.
             override fun onShown(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
                 onSelect.value?.invoke(targets.firstOrNull()?.x)
+                scrub.value?.invoke(targets.firstOrNull()?.x)
             }
             override fun onUpdated(marker: CartesianMarker, targets: List<CartesianMarker.Target>) {
                 onSelect.value?.invoke(targets.firstOrNull()?.x)
+                scrub.value?.invoke(targets.firstOrNull()?.x)
             }
             override fun onHidden(marker: CartesianMarker) {
                 onSelect.value?.invoke(null)
+                scrub.value?.invoke(null)
             }
         }
     }
