@@ -868,6 +868,7 @@ data class BarDatum(val label: String, val value: Double)
     comparison: List<ChartPoint>? = null,                        // secondary series (TextTertiary)
     minXLabelStep: Double = 0.0, minYStep: Double = 0.0,
     breaks: List<Double> = emptyList(),                          // x values where the line is interrupted (§10.7)
+    onScrub: ((x: Double?) -> Unit)? = null,                     // readout x while pressed/dragged, null on lift (§10.12)
 )
 @Composable fun AppBarChart(
     bars: List<BarDatum>, modifier: Modifier = Modifier, yFormatter: (Double) -> String,
@@ -1217,6 +1218,7 @@ class MapModule(core: CoreDeps) {
     userLocation: GeoPoint? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onClick: (() -> Unit)? = null,
+    scrubDistanceM: (() -> Double?)? = null,                 // read lazily: scrubbed spot (m), white dot; null = none (§10.12)
 )
 // map/RouteThumbnail.kt  CONTRACT(C) — cheap, list-safe (no live MapView per row)
 @Composable fun RouteThumbnail(route: MapRoute, modifier: Modifier = Modifier, cacheKey: String? = null)
@@ -1235,8 +1237,8 @@ a steady run stays mid-scale while surges and walk breaks keep full contrast), s
 style layers). MapLibre ambient cache + per-run offline region whose metadata stores the runId.
 
 Consumers: A (Record screen `LIVE`, dev compare with `comparison`, finalizer `downloadRunArea`),
-D (detail `INTERACTIVE`/`STATIC` with `animateDrawIn = true`; list cards `RouteThumbnail`; delete →
-`deleteRunArea`), E (optional thumbnails on PB rows).
+D (detail `INTERACTIVE`/`STATIC` with `animateDrawIn = true`, the top `STATIC` map and the chart
+scrub mini map with `scrubDistanceM` (§10.12); list cards `RouteThumbnail`; delete → `deleteRunArea`), E (optional thumbnails on PB rows).
 
 ### 3.5 Setup — implemented by F
 
@@ -2127,3 +2129,38 @@ still held for the settings read, before the nav graph, Record screen and map co
 main wins (the first composition of each screen, the map, charts, scrolling) fall after TTID. Measuring
 them needs `ReportDrawnWhen` in the app (TTFD) or a `FrameTimingMetric` journey benchmark, on a real phone.
 
+### 10.12 Chart scrub on the route map (2026-11-26)
+
+On Run detail, while a finger is on the pace or elevation chart, a small map of the route fades in
+just above that chart with a dot (white, dark ring, no label: the chart readout already shows value
+and km) at the scrubbed distance; the top route map shows the same dot. Lifting the finger fades the
+mini map out. The fullscreen map is unchanged.
+
+- **Source**: `AppLineChart(onScrub = …)` comes from the existing Vico marker visibility listener (the
+  default show-on-press controller: shown on press, updated on move, hidden on release), so the
+  readout and gestures are unchanged: a vertical drag that starts on a chart still scrolls the page.
+  Run detail keeps a `ChartScrub` holder (which chart: changes on press/lift only; distance in m:
+  changes per move and is read lazily, so scrubbing recomposes nothing but the small overlay).
+- **Distance → point**: chart x (km) and `RoutePoint.distanceM` are the same axis (filtered, non-paused
+  points). `RouteSegments.pointAtDistance` does a binary search and interpolates, clamped to the route
+  ends; it shares `indexPast`/`pointBefore` with `truncateToDistance` and `RouteDrawing.linesUpTo`.
+  A distance inside a pause falls on the straight line between the points either side; a resume gap
+  (pace break) has step-filled points and is followed like any stretch. Unit tests in `RouteGeometryTest`.
+- **Map side**: `RouteMap(scrubDistanceM = { … })` is a lambda read in a `snapshotFlow`, so each move
+  re-sets one GeoJSON point on the new `route-scrub` source (`RouteLayers`: above markers, below the
+  user dot), at most once a frame, skipped when unchanged. Nothing is recreated per move.
+- **Mini map**: one shared `RouteMap` (`STATIC`, fitted, no draw-in), 160 dp high, floating in a Box
+  over the scrolling page and positioned with `offset {}` just above the active chart section (below
+  it when there is no room under the top bar), so nothing in the page moves. A MapView created on
+  touch-down would need far longer than the gesture to load style and tiles, so the map is composed
+  once a chart section is within 1.5 viewport heights (after the push slide, so it does not compete
+  with it), then kept at alpha 0 *below* the page (`zIndex(-1)`): its tiles are ready before the first
+  touch and the invisible view takes no touches. On press it moves on top and fades in with
+  `Motion.state()` (a show/hide; `Motion.appear` would expand layout and `AnimatedVisibility` would
+  dispose the map). It also hides while the page scrolls. Cost: one extra MapView (and GL surface) on
+  Run detail once the charts are near; it renders only when something changes, and receives the same
+  low-memory forwarding as every `RouteMap` (§10.10).
+- **Emulator check** (`Running_Test`, release APK): touch on the pace chart showed the mini map mid-fade
+  with tiles and dot at 150 ms; the dot followed the finger on both maps; lift faded it out; no layout
+  shift; a vertical drag from the chart scrolled the page with the mini map hidden; a drag starting
+  over the hidden mini map's spot scrolled the page.
