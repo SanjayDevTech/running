@@ -4,12 +4,15 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -35,19 +39,35 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.running.R
 import com.example.running.core.model.ActivityType
+import com.example.running.core.model.MapRoute
 import com.example.running.core.model.RouteMapMode
 import com.example.running.core.model.SegmentKind
 import com.example.running.core.util.METERS_PER_KM
@@ -74,14 +94,17 @@ import com.example.running.ui.components.charts.AppLineChart
 import com.example.running.ui.theme.Accent
 import com.example.running.ui.theme.AppText
 import com.example.running.ui.theme.Black
-import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Danger
+import com.example.running.ui.theme.Motion
 import com.example.running.ui.theme.Radius
 import com.example.running.ui.theme.Raised3
 import com.example.running.ui.theme.Raised4
 import com.example.running.ui.theme.Sizes
 import com.example.running.ui.theme.Spacing
 import com.example.running.ui.theme.color
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /** CONTRACT(D). Public signature frozen (architecture.md §3.8). */
 @Composable
@@ -144,6 +167,9 @@ private fun DetailContent(
     var mapExpanded by rememberSaveable { mutableStateOf(false) }
     var highlightIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     val highlight = highlightIndex?.let { i -> content.splits.firstOrNull { it.index == i } }
+    val scrub = remember { ChartScrub() }
+    val anchors = remember { ChartAnchors() }
+    val scroll = rememberScrollState()
 
     BackHandler(enabled = mapExpanded) { mapExpanded = false }
 
@@ -187,100 +213,107 @@ private fun DetailContent(
                     }
                 },
             )
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Spacing.xxxl),
-                verticalArrangement = Arrangement.spacedBy(Spacing.l),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = Spacing.gutter),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+            // The viewport below the top bar: the scrolling page plus the scrub mini map floating over it.
+            Box(Modifier.fillMaxSize().onSizeChanged { anchors.viewportHeight = it.height.toFloat() }) {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = Spacing.xxxl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.l),
                 ) {
-                    ActivityTypeIcon(run.type, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(content.subtitle, style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                content.geometry.route?.let { route ->
-                    RouteMap(
-                        route = route,
-                        mode = RouteMapMode.STATIC,
-                        animateDrawIn = true,
-                        highlightDistanceM = highlight?.let { it.startDistanceM..it.endDistanceM },
-                        onClick = { mapExpanded = true },
-                        modifier = Modifier.fillMaxWidth().height(Sizes.mapHeight),
-                    )
-                }
-
-                Column(Modifier.padding(horizontal = Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.l)) {
-                    val h = content.headline
-                    StatRow(
-                        listOf(
-                            StatItem(stringResource(R.string.stat_distance), h.distanceKm, stringResource(R.string.unit_km)),
-                            StatItem(stringResource(R.string.detail_stat_moving_time), h.movingTime),
-                        ),
-                        size = StatSize.XL,
-                    )
-                    StatRow(
-                        listOf(
-                            StatItem(stringResource(R.string.detail_stat_pace), h.pace, stringResource(R.string.unit_pace)),
-                            StatItem(stringResource(R.string.detail_stat_elapsed), h.elapsed),
-                            StatItem(stringResource(R.string.stat_elevation), h.elevation),
-                        ),
-                        size = StatSize.L,
-                    )
-                    StatRow(
-                        listOf(
-                            StatItem(stringResource(R.string.stat_calories), h.calories, stringResource(R.string.unit_kcal)),
-                            StatItem(stringResource(R.string.stat_cadence), h.cadence, stringResource(R.string.unit_spm)),
-                        ),
-                        size = StatSize.L,
-                    )
-
-                    val pbs = content.efforts.filter { it.isPersonalBest }
-                    if (pbs.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.s),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.s),
-                        ) { pbs.forEach { PbBadge(stringResource(R.string.detail_pb_badge, it.label)) } }
+                    Row(
+                        Modifier.padding(horizontal = Spacing.gutter),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+                    ) {
+                        ActivityTypeIcon(run.type, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(content.subtitle, style = AppText.bodyS, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }
 
-                if (content.geometry.pace.size >= 2) {
-                    Column(Modifier.padding(horizontal = Spacing.gutter)) {
-                        SectionHeader(stringResource(R.string.detail_section_pace))
-                        AppLineChart(
-                            points = content.geometry.pace,
-                            breaks = content.geometry.paceBreaksKm,
-                            yFormatter = { formatPace(it) },
-                            xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
-                            minXLabelStep = 0.1, // one decimal km
-                            invertY = true,
-                            filled = false,
+                    content.geometry.route?.let { route ->
+                        RouteMap(
+                            route = route,
+                            mode = RouteMapMode.STATIC,
+                            animateDrawIn = true,
+                            highlightDistanceM = highlight?.let { it.startDistanceM..it.endDistanceM },
+                            onClick = { mapExpanded = true },
+                            modifier = Modifier.fillMaxWidth().height(Sizes.mapHeight),
+                            scrubDistanceM = { scrub.distanceM },
                         )
                     }
-                }
-                if (content.geometry.elevation.size >= 2) {
-                    Column(Modifier.padding(horizontal = Spacing.gutter)) {
-                        SectionHeader(stringResource(R.string.detail_section_elevation))
-                        AppLineChart(
-                            points = content.geometry.elevation,
-                            yFormatter = { formatElevation(it) },
-                            xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
-                            minXLabelStep = 0.1, // one decimal km
-                            minYStep = 1.0, // formatElevation shows whole metres
+
+                    Column(Modifier.padding(horizontal = Spacing.gutter), verticalArrangement = Arrangement.spacedBy(Spacing.l)) {
+                        val h = content.headline
+                        StatRow(
+                            listOf(
+                                StatItem(stringResource(R.string.stat_distance), h.distanceKm, stringResource(R.string.unit_km)),
+                                StatItem(stringResource(R.string.detail_stat_moving_time), h.movingTime),
+                            ),
+                            size = StatSize.XL,
+                        )
+                        StatRow(
+                            listOf(
+                                StatItem(stringResource(R.string.detail_stat_pace), h.pace, stringResource(R.string.unit_pace)),
+                                StatItem(stringResource(R.string.detail_stat_elapsed), h.elapsed),
+                                StatItem(stringResource(R.string.stat_elevation), h.elevation),
+                            ),
+                            size = StatSize.L,
+                        )
+                        StatRow(
+                            listOf(
+                                StatItem(stringResource(R.string.stat_calories), h.calories, stringResource(R.string.unit_kcal)),
+                                StatItem(stringResource(R.string.stat_cadence), h.cadence, stringResource(R.string.unit_spm)),
+                            ),
+                            size = StatSize.L,
+                        )
+
+                        val pbs = content.efforts.filter { it.isPersonalBest }
+                        if (pbs.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.s),
+                            ) { pbs.forEach { PbBadge(stringResource(R.string.detail_pb_badge, it.label)) } }
+                        }
+                    }
+
+                    if (content.geometry.pace.size >= 2) {
+                        Column(Modifier.padding(horizontal = Spacing.gutter).onPlaced { anchors.place(ScrubChart.PACE, it) }) {
+                            SectionHeader(stringResource(R.string.detail_section_pace))
+                            AppLineChart(
+                                points = content.geometry.pace,
+                                onScrub = { scrub.update(ScrubChart.PACE, it) },
+                                breaks = content.geometry.paceBreaksKm,
+                                yFormatter = { formatPace(it) },
+                                xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
+                                minXLabelStep = 0.1, // one decimal km
+                                invertY = true,
+                                filled = false,
+                            )
+                        }
+                    }
+                    if (content.geometry.elevation.size >= 2) {
+                        Column(Modifier.padding(horizontal = Spacing.gutter).onPlaced { anchors.place(ScrubChart.ELEVATION, it) }) {
+                            SectionHeader(stringResource(R.string.detail_section_elevation))
+                            AppLineChart(
+                                points = content.geometry.elevation,
+                                onScrub = { scrub.update(ScrubChart.ELEVATION, it) },
+                                yFormatter = { formatElevation(it) },
+                                xFormatter = { formatDistanceKm(it * METERS_PER_KM, 1) },
+                                minXLabelStep = 0.1, // one decimal km
+                                minYStep = 1.0, // formatElevation shows whole metres
+                            )
+                        }
+                    }
+
+                    if (content.splits.isNotEmpty()) {
+                        SplitsTable(
+                            rows = content.splits,
+                            selectedIndex = highlightIndex,
+                            onSelect = { highlightIndex = if (highlightIndex == it) null else it },
                         )
                     }
+                    content.segments?.let { SegmentsSection(it) }
+                    if (content.efforts.isNotEmpty()) EffortsSection(content.efforts)
                 }
-
-                if (content.splits.isNotEmpty()) {
-                    SplitsTable(
-                        rows = content.splits,
-                        selectedIndex = highlightIndex,
-                        onSelect = { highlightIndex = if (highlightIndex == it) null else it },
-                    )
-                }
-                content.segments?.let { SegmentsSection(it) }
-                if (content.efforts.isNotEmpty()) EffortsSection(content.efforts)
+                content.geometry.route?.let { ScrubMiniMap(it, scrub, anchors, scroll) }
             }
         }
 
@@ -322,6 +355,114 @@ private fun DetailContent(
         )
     }
 }
+
+/** The chart a finger is on. */
+private enum class ScrubChart { PACE, ELEVATION }
+
+/**
+ * Where the finger is on the pace or elevation chart. [chart] changes only on press and lift;
+ * [distanceM] on every move and is read lazily (map effects, layout), so scrubbing does not recompose
+ * the page.
+ */
+@Stable
+private class ChartScrub {
+    var chart by mutableStateOf<ScrubChart?>(null)
+        private set
+    var distanceM by mutableStateOf<Double?>(null)
+        private set
+
+    /** [xKm] is the chart's x (distance in km) under the finger, null when the finger lifts. */
+    fun update(which: ScrubChart, xKm: Double?) {
+        if (xKm != null) {
+            chart = which
+            distanceM = xKm * METERS_PER_KM
+        } else if (chart == which) {
+            chart = null
+            distanceM = null
+        }
+    }
+}
+
+/** Vertical extent of each chart section inside the scrolling content (px), and the viewport height. */
+@Stable
+private class ChartAnchors {
+    var viewportHeight by mutableFloatStateOf(0f)
+    private val top = mutableStateMapOf<ScrubChart, Float>()
+    private val bottom = mutableStateMapOf<ScrubChart, Float>()
+
+    fun place(which: ScrubChart, coords: LayoutCoordinates) {
+        val y = coords.positionInParent().y
+        top[which] = y
+        bottom[which] = y + coords.size.height
+    }
+
+    fun top(which: ScrubChart): Float? = top[which]
+    fun bottom(which: ScrubChart): Float? = bottom[which]
+
+    /** Content y of the first chart section, or null before any chart is placed. */
+    val firstTop: Float? get() = top.values.minOrNull()
+}
+
+/**
+ * A small fitted map of the route floating just above the chart being scrubbed, with the scrubbed spot
+ * as a dot (architecture.md §10.12). One map serves both charts. It is composed once a chart is near
+ * the viewport (after the push slide), then kept at alpha 0 *below* the page, so its style and tiles are
+ * loaded before the first touch and it neither shows nor takes touches. On press it moves on top and
+ * fades in (Motion.state(), a show/hide); on lift, or once the page scrolls, it fades out. It overlays
+ * the page, so nothing below it moves.
+ */
+@Composable
+private fun BoxScope.ScrubMiniMap(route: MapRoute, scrub: ChartScrub, anchors: ChartAnchors, scroll: ScrollState) {
+    var composed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(Motion.NAV_MS.toLong()) // a second MapView during the push slide would compete with it
+        snapshotFlow {
+            val first = anchors.firstTop
+            scrub.chart != null || (first != null && first - scroll.value < anchors.viewportHeight * MINI_MAP_PRELOAD_SCREENS)
+        }.first { it }
+        composed = true
+    }
+    if (!composed) return
+
+    val visible = scrub.chart != null && !scroll.isScrollInProgress
+    val alpha = animateFloatAsState(if (visible) 1f else 0f, Motion.state(), label = "scrubMap")
+    val onTop by remember { derivedStateOf { alpha.value > 0f } }
+    val lastChart = remember { arrayOf(ScrubChart.PACE) }
+    val density = LocalDensity.current
+    val gap = with(density) { Spacing.s.roundToPx() }
+    val height = with(density) { MINI_MAP_HEIGHT.roundToPx() }
+    Box(
+        Modifier
+            .zIndex(if (onTop) 1f else -1f)
+            .offset {
+                val which = scrub.chart?.also { lastChart[0] = it } ?: lastChart[0]
+                val top = (anchors.top(which) ?: 0f) - scroll.value
+                val bottom = (anchors.bottom(which) ?: 0f) - scroll.value
+                val above = top - gap - height
+                // Above the section; below it when the section is too close to the top bar.
+                val y = if (above >= 0f) above else bottom + gap
+                IntOffset(0, y.roundToInt().coerceIn(0, maxOf(0, anchors.viewportHeight.roundToInt() - height)))
+            }
+            .graphicsLayer { this.alpha = alpha.value }
+            .padding(horizontal = Spacing.gutter)
+            .fillMaxWidth()
+            .height(MINI_MAP_HEIGHT)
+            .clip(RoundedCornerShape(Radius.md))
+            .clearAndSetSemantics { }, // decorative; the chart readout carries the value
+    ) {
+        RouteMap(
+            route = route,
+            mode = RouteMapMode.STATIC,
+            scrubDistanceM = { scrub.distanceM },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+private val MINI_MAP_HEIGHT = 160.dp
+
+/** The mini map is created once a chart section is this many viewport heights below the viewport top. */
+private const val MINI_MAP_PRELOAD_SCREENS = 1.5f
 
 @Composable
 private fun SplitsTable(rows: List<SplitRowUi>, selectedIndex: Int?, onSelect: (Int) -> Unit) {
